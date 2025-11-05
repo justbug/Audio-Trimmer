@@ -8,10 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		4D768FF62EBB51110035298C /* App in Frameworks */ = {isa = PBXBuildFile; productRef = 4D768FF52EBB51110035298C /* App */; };
+		4D7690292EBB62B70035298C /* App in Frameworks */ = {isa = PBXBuildFile; productRef = 4D7690282EBB62B70035298C /* App */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		4D768FF32EBB50030035298C /* App */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = App; sourceTree = "<group>"; };
 		4DADEE202EBB4C07002CDA47 /* Audio Trimmer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Audio Trimmer.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -28,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4D7690292EBB62B70035298C /* App in Frameworks */,
 				4D768FF62EBB51110035298C /* App in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -38,7 +39,6 @@
 		4DADEE172EBB4C07002CDA47 = {
 			isa = PBXGroup;
 			children = (
-				4D768FF32EBB50030035298C /* App */,
 				4DADEE222EBB4C07002CDA47 /* Audio Trimmer */,
 				4DADEE212EBB4C07002CDA47 /* Products */,
 			);
@@ -73,6 +73,7 @@
 			name = "Audio Trimmer";
 			packageProductDependencies = (
 				4D768FF52EBB51110035298C /* App */,
+				4D7690282EBB62B70035298C /* App */,
 			);
 			productName = "Audio Trimmer";
 			productReference = 4DADEE202EBB4C07002CDA47 /* Audio Trimmer.app */;
@@ -103,7 +104,7 @@
 			mainGroup = 4DADEE172EBB4C07002CDA47;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				4D768FF42EBB51110035298C /* XCLocalSwiftPackageReference "App" */,
+				4D7690272EBB62B70035298C /* XCLocalSwiftPackageReference "App" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4DADEE212EBB4C07002CDA47 /* Products */;
@@ -358,7 +359,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		4D768FF42EBB51110035298C /* XCLocalSwiftPackageReference "App" */ = {
+		4D7690272EBB62B70035298C /* XCLocalSwiftPackageReference "App" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = App;
 		};
@@ -366,6 +367,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		4D768FF52EBB51110035298C /* App */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = App;
+		};
+		4D7690282EBB62B70035298C /* App */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = App;
 		};
