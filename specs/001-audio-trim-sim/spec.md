@@ -45,70 +45,76 @@ The producer starts playback, pauses midway, confirms countdown halts, and resum
 
 **Why this priority**: Provides realistic interaction for demonstrating control responsiveness and is the next most critical user expectation after basic playback.
 
-**Independent Test**: `TestStore` sends `.playTapped`, advances time to trigger ticks, dispatches `.pauseTapped`, verifies cancellation of the timer effect, then `.resumeTapped` and confirms ticks resume from the persisted current second.
+**Independent Test**: `TestStore` sends `.playTapped`, advances time to trigger ticks, dispatches `.pauseTapped`, verifies cancellation of the timer effect, then sends `.playTapped` again (which handles resume) and confirms ticks resume from the persisted current second.
 
 **Acceptance Scenarios**:
 
 1. **Given** playback running with 6 seconds remaining, **When** pause is tapped, **Then** the reducer switches to `paused`, cancels further ticks, and the remaining time display holds steady.
-2. **Given** playback paused at 4 seconds remaining, **When** resume is tapped, **Then** the reducer re-schedules ticks and playback completes in exactly 4 additional seconds without repeating earlier timeline events.
+2. **Given** playback paused at 4 seconds remaining, **When** play is tapped again, **Then** the reducer re-schedules ticks and playback completes in exactly 4 additional seconds without repeating earlier timeline events.
 
 ---
 
-### User Story 3 - Adjust Markers and Clip Window (Priority: P3)
+### User Story 3 - Load Configuration (Priority: P3)
 
-The producer edits key time percentages and clip window values, observing immediate validation feedback and updated timeline markers before starting playback.
+The producer loads track configuration from an external source (via `ConfigurationLoader` dependency), and the system updates state with the loaded configuration, resetting playback to idle state.
 
-**Why this priority**: Ensures the simulator visual accurately reflects new configurations, enabling iterative demo setup.
+**Why this priority**: Enables dynamic configuration loading for different demo scenarios without hardcoding track data.
 
-**Independent Test**: `TestStore` exercises `.updateKeyTimes`, `.updateClipStart`, and `.updateClipDuration` actions, asserting normalized, sorted marker output and validation flags toggled in state without entering playback.
+**Independent Test**: `TestStore` exercises `.loadConfiguration` action, verifies async loading via `ConfigurationLoader` dependency, and asserts state updates on `.configurationLoaded` or error handling on `.loadConfigurationFailed`.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user enters key times 70%, 20%, **When** the configuration is saved, **Then** the reducer sorts them ascending, clamps values to 0–100, and exposes derived absolute timestamps.
-2. **Given** clip start 80 seconds and duration 15 seconds on a 120-second track, **When** the user submits the form, **Then** validation forces the clip end to 120 seconds and surfaces an inline warning until the inputs are corrected.
+1. **Given** a `ConfigurationLoader` dependency providing a valid `TrackConfiguration`, **When** `.loadConfiguration` is dispatched, **Then** the reducer loads the configuration asynchronously and updates state with the new configuration, resetting playback to idle.
+2. **Given** a `ConfigurationLoader` dependency that throws an error, **When** `.loadConfiguration` is dispatched, **Then** the reducer receives `.loadConfigurationFailed` with the error message and state remains unchanged.
+
+**Note**: Configuration editing actions (`.updateKeyTimes`, `.updateClipStart`, `.updateClipDuration`) are not implemented in the current codebase. Configuration is loaded via the `ConfigurationLoader` dependency pattern.
 
 ---
 
 ### Edge Cases
 
-- Track length below minimum (≤ 0 seconds) blocks playback and surfaces inline validation.
-- Clip duration exceeding track length causes auto-clamping to track end and highlights the offending field until corrected.
-- Duplicate or out-of-range key time percentages are deduplicated and capped at 0–100 while warning the user about adjustments.
-- Timer drift: ensure the simulated clock ticks pause when app moves to background and catches up without skipping when resumed.
-- VoiceOver focus while countdown updates: labels must not cause focus jumps when time remaining changes rapidly.
+- Track length below minimum (≤ 0 seconds) is handled through computed properties that return safe defaults (e.g., `normalizedClipRangePercent` returns `0...0` when `totalDuration <= 0`).
+- Clip duration exceeding track length causes auto-clamping via `clipRangeSeconds` computed property which ensures the clip end does not exceed `totalDuration`.
+- Key time percentages are normalized via `normalizedKeyTimesPercent` which clamps values to 0–1 range (0–100%).
+- Timer cancellation: the timer effect is properly cancelled when paused or reset, using `TimerID.playback` to prevent overlapping timers.
+- Playback state transitions: `.playTapped` handles both initial play and resume from paused/finished states by checking current status.
+- VoiceOver focus while countdown updates: labels must not cause focus jumps when time remaining changes rapidly (UI implementation pending).
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST capture track length input greater than 0 seconds as a `TimeInterval` and reject non-positive values with inline validation.
-- **FR-002**: System MUST accept a clip start offset and duration, stored as `TimeInterval` values, enforcing that the resulting clip window stays within the configured track length (i.e., `clipStart >= 0` and `clipStart + clipDuration <= totalDuration`).
-- **FR-003**: System MUST allow entry of multiple key time percentages, normalize them to unique ascending values within 0–100, and surface derived absolute timestamps.
-- **FR-004**: System MUST provide play, pause, and resume controls that reflect the current playback state and disable invalid transitions (e.g., disable play while already playing).
-- **FR-005**: System MUST drive a simulated playback loop that emits one state update per second without relying on real audio files.
-- **FR-006**: System MUST decrement the remaining playback time each tick using `TimeInterval` arithmetic, stop automatically at zero, and reset the current second to the clip start for future runs.
-- **FR-007**: System MUST cancel scheduled ticks immediately when paused and resume from the stored current position without skipping or doubling ticks.
-- **FR-008**: System MUST expose a read-only timeline model (including clip window and key markers) for SwiftUI to render progress indicators consistently during configuration and playback.
+- **FR-001**: System MUST store track length as a `TimeInterval` in `TrackConfiguration.totalDuration`. Computed properties handle edge cases (e.g., `normalizedClipRangePercent` returns `0...0` when `totalDuration <= 0`).
+- **FR-002**: System MUST accept a clip start offset and duration, stored as `TimeInterval` values in `TrackConfiguration`. The `clipRangeSeconds` computed property enforces that the resulting clip window stays within the configured track length by clamping the end to `totalDuration`.
+- **FR-003**: System MUST store multiple key time percentages in `TrackConfiguration.keyTimePercentages` and normalize them via `normalizedKeyTimesPercent` which clamps values to 0–1 range (0–100%).
+- **FR-004**: System MUST provide play (`.playTapped`), pause (`.pauseTapped`), and reset (`.resetTapped`) controls. The `.playTapped` action handles both initial play and resume from paused/finished states by checking current playback status.
+- **FR-005**: System MUST drive a simulated playback loop that emits one state update per second via `.tick` actions, scheduled using `ContinuousClock` timer effect without relying on real audio files.
+- **FR-006**: System MUST decrement the remaining playback time each tick using `TimeInterval` arithmetic, stop automatically when `currentPosition >= clipEnd`, and provide `.resetTapped` to reset playback to idle state.
+- **FR-007**: System MUST cancel scheduled ticks immediately when paused (via `.pauseTapped`) or reset (via `.resetTapped`) using `TimerID.playback`, and resume from the stored current position when `.playTapped` is dispatched again.
+- **FR-008**: System MUST expose a read-only `TimelineSnapshot` model (including `clipRangeSeconds`, `clipRangePercent`, `markerPositionsPercent`, `currentProgressPercent`) that is recomputed via `updateDerivedState` whenever configuration or playback changes.
+- **FR-009**: System MUST support loading configuration asynchronously via `.loadConfiguration` action, which uses the `ConfigurationLoader` dependency to fetch `TrackConfiguration` and updates state via `.configurationLoaded` or `.loadConfigurationFailed` actions.
 
 ### Key Entities *(include if feature involves data)*
 
-- **TrackConfiguration**: Represents user-defined settings comprising `totalDurationSeconds`, ordered `keyTimePercentages`, `clipStartSeconds`, and `clipDurationSeconds`; derives absolute marker times and validation errors.
-- **PlaybackSimulation**: Captures runtime state including `status` (idle, playing, paused, finished), `currentSecond`, `remainingSeconds`, and the cancellable token for the active timer effect.
+- **TrackConfiguration**: Represents track settings comprising `totalDuration`, `clipStart`, `clipDuration`, and `keyTimePercentages`; provides computed properties `clipEnd`, `clipRangeSeconds`, `normalizedClipRangePercent`, and `normalizedKeyTimesPercent` for derived values.
+- **PlaybackState**: Captures runtime playback state including `status` (idle, playing, paused, finished), `currentPosition`, and `remainingDuration`. Provides static factory methods `.idle`, `.idle(configuration:)`, and `.playing(configuration:)` for initialization.
+- **TimelineSnapshot**: Read-only snapshot of timeline state including `clipRangeSeconds`, `clipRangePercent`, `markerPositionsPercent`, and `currentProgressPercent`. Computed from `TrackConfiguration` and playback progress.
+- **ConfigurationLoader**: Dependency protocol for loading `TrackConfiguration` asynchronously. Provides `liveValue` (throws `ConfigurationLoadError.notImplemented` by default) and `testValue` (returns test configuration) implementations.
 
 ## Architecture & State Management *(mandatory)*
 
-- **Feature Reducers**: Introduce `AudioTrimmerFeature` annotated with `@Reducer`, owning `@ObservableState` fields for `TrackConfiguration`, `PlaybackSimulation`, form validation flags, and derived timeline models, with all duration and offset values represented as `TimeInterval`. Actions include configuration updates, `playTapped`, `pauseTapped`, `resumeTapped`, `tick`, and `onAppear`. Effects: `playTapped` starts a `ContinuousClock`-driven timer sending `.tick` every second until cancellation or completion; `pauseTapped` cancels via a stable `TimerID`.
-- **Dependencies**: Leverage `Dependency(\.continuousClock)` to supply a `Clock` instance; override with `ImmediateClock` within tests for deterministic ticking. Use `Dependency(\.date.now)` only for logging playback start timestamps if needed. No external audio services are invoked.
+- **Feature Reducers**: `AudioTrimmerFeature` annotated with `@Reducer`, owning `@ObservableState` with fields: `configuration: TrackConfiguration`, `playbackState: PlaybackState`, and `timeline: TimelineSnapshot`. All duration and offset values represented as `TimeInterval`. Actions include `playTapped`, `pauseTapped`, `resetTapped`, `tick`, `loadConfiguration`, `configurationLoaded(TrackConfiguration)`, and `loadConfigurationFailed(String)`. Effects: `playTapped` starts a `ContinuousClock`-driven timer sending `.tick` every second until cancellation or completion (keyed by `TimerID.playback`); `pauseTapped` and `resetTapped` cancel the timer effect. The `updateDerivedState` helper function rebuilds `TimelineSnapshot` whenever configuration or playback changes.
+- **Dependencies**: Leverage `@Dependency(\.continuousClock)` to supply a `Clock` instance; override with `TestClock` within tests for deterministic ticking. Use `@Dependency(\.configurationLoader)` to load track configuration asynchronously; provides `liveValue` (throws error by default) and `testValue` (returns test configuration) implementations. No external audio services are invoked.
 - **Navigation**: Feature remains within existing navigation stack; exposed as a leaf reducer scoped from its parent via `Scope(state:action:)`. No modal or path-based navigation changes required.
-- **View Composition**: Create `AudioTrimmerView` bound to `StoreOf<AudioTrimmerFeature>` using `WithViewStore`. Present a `Form` for configuration fields, a `TimelineView` or custom `GeometryReader` visualization for markers, and a control bar with play/pause buttons bound to the store. Derived bindings use `@Bindable` for form inputs while playback progress observes state changes via `ProgressView`.
+- **View Composition**: Create `AudioTrimmerView` bound to `StoreOf<AudioTrimmerFeature>` using `@Bindable` properties generated by `@ObservableState`. Present configuration display, a timeline visualization for markers, and a control bar with play/pause/reset buttons bound to the store. Playback progress observes state changes via the `timeline.currentProgressPercent` property.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
 - **SC-001**: Simulated playback runs for the configured clip duration and stops within ±0.2 seconds of the expected end time in deterministic tests.
-- **SC-002**: Pause/resume testing demonstrates zero additional ticks emitted while paused and resumes with no more than a one-second drift from the stored current position.
-- **SC-003**: Configuration validation prevents submission of out-of-range values in 100% of automated TestStore scenarios covering min/max bounds.
+- **SC-002**: Pause/resume testing demonstrates zero additional ticks emitted while paused and resumes with no more than a one-second drift from the stored current position when `.playTapped` is dispatched again.
+- **SC-003**: Configuration loading via `ConfigurationLoader` dependency succeeds in test scenarios and properly updates state with loaded configuration, resetting playback to idle state.
 - **SC-004**: Key time markers render in the UI at positions that match calculated absolute timestamps within 1% of total track length during snapshot/UI testing.
 - **SC-005**: Timer effect cancellation occurs within 50 ms of pause in instrumentation logs, ensuring no overlapping timers remain active.
 - **SC-006**: Accessibility audit confirms all playback controls expose descriptive VoiceOver labels and dynamic countdown updates announce with polite priority so focus is retained.

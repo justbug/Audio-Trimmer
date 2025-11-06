@@ -5,7 +5,9 @@
 
 ## Summary
 
-Implement the audio trimming simulator logic as a pure TCA reducer using dummy data, enforcing configuration validation, simulated countdown playback with play/pause/resume, and deterministic timer effects covered by `TestStore` tests. UI construction is explicitly deferred; this iteration delivers the underlying state machine and tests so future SwiftUI views can bind directly to it.
+Implemented the audio trimming simulator logic as a pure TCA reducer with configuration loading via dependency injection, simulated countdown playback with play/pause/reset controls, and deterministic timer effects covered by `TestStore` tests. The reducer uses `PlaybackState` (not `PlaybackSimulation`) and `TimelineSnapshot` for derived state. Configuration is loaded asynchronously via `ConfigurationLoader` dependency pattern. Resume functionality is handled by `.playTapped` when status is paused or finished. UI construction is explicitly deferred; this iteration delivers the underlying state machine and tests so future SwiftUI views can bind directly to it.
+
+**Note**: User Story 3 (configuration editing actions like `.updateClipStart`, `.updateClipDuration`, `.updateKeyTimes`) was not implemented. Configuration is loaded via the `ConfigurationLoader` dependency rather than edited interactively.
 
 ## Technical Context
 
@@ -21,8 +23,8 @@ Implement the audio trimming simulator logic as a pure TCA reducer using dummy d
 
 ## Constitution Check
 
-- **Composable Architecture Discipline**: Reducer will live at `App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift` with clearly defined `@ObservableState`, `Action`, and effect body. Dummy data is injected through state initialisers and dependencies. No child navigation required; future UI will scope into this reducer.
-- **Test-Driven Reliability**: Plan enforces red-green loop via `TestStore` cases covering play, pause, resume, validation, and timer cancellation using `ImmediateClock` and dependency overrides to assert effect lifecycles before shipping.
+- **Composable Architecture Discipline**: Reducer lives at `App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift` with clearly defined `@ObservableState` (containing `configuration`, `playbackState`, `timeline`), `Action` enum, and effect body. Configuration is loaded via `ConfigurationLoader` dependency. `ConfigurationLoader` is defined in `ConfigurationLoader.swift` with `liveValue` and `testValue` implementations. No child navigation required; future UI will scope into this reducer.
+- **Test-Driven Reliability**: Implementation includes `TestStore` cases covering play, pause, reset, configuration loading, and timer cancellation using `TestClock` and dependency overrides to assert effect lifecycles.
 - **Consistent & Accessible UX**: Although UI is postponed, we will document expected bindings, accessibility labels, and state exposures so the upcoming UI work can satisfy VoiceOver and Dynamic Type requirements without refactoring the reducer.
 - **Performance & Efficiency Guarantees**: Simulated playback uses a cancellable timer effect keyed by a `TimerID`, ensuring no overlapping timers. Deterministic tests plus instrumentation hooks (e.g., optional logging dependency) keep countdown work off the main thread where feasible.
 - **Code Quality & Review Integrity**: Implementation will conform to Swift formatting, expose only necessary types public, include inline comments for complex timer handling, and update documentation/tests so reviewers can verify reducer behaviour quickly.
@@ -51,13 +53,16 @@ Audio Trimmer/App/
 │   └── App/
 │       ├── Features/
 │       │   └── AudioTrimmer/
-│       │       ├── AudioTrimmerFeature.swift          # New reducer + dummy data
-│       │       └── Dependencies/                      # (If needed) shared clients
-│       ├── SharedUI/                                  # Existing shared components (unused this iteration)
-│       └── Support/                                   # Utilities
+│       │       ├── AudioTrimmerFeature.swift          # Reducer with PlaybackState, TimelineSnapshot
+│       │       └── ConfigurationLoader.swift          # Dependency for async configuration loading
+│       ├── Models/
+│       │   └── TrackConfiguration.swift                # Track configuration model with computed properties
+│       ├── Extensions/
+│       │   └── Double+Clamping.swift                  # Double.clamped() extension for normalization
+│       └── App.swift                                   # Main app entry point
 └── Tests/
     └── AppTests/
-        └── AudioTrimmerTests.swift                    # New TestStore coverage
+        └── AudioTrimmerTests.swift                    # TestStore coverage for playback and loading
 ```
 
 **Structure Decision**: Follow existing TCA layout under `Features`, creating `AudioTrimmer` folder with reducer and optional dependency definitions; tests live under mirrored path in `AppTests`.

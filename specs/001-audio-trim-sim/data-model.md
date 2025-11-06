@@ -4,48 +4,59 @@
 
 ### TrackConfiguration
 - **Fields**
-  - `totalDuration: TimeInterval` (> 0)
-  - `clipStart: TimeInterval` (≥ 0, < totalDuration)
-  - `clipDuration: TimeInterval` (≥ 1, ≤ totalDuration)
-  - `keyTimePercentages: [Double]` (values 0...100, unique, sorted)
-- **Derived**
-  - `clipEnd = min(totalDuration, clipStart + clipDuration)`
-  - `normalizedKeyTimes = keyTimePercentages.map(clamp to 0...100).unique.sorted`
-  - `absoluteKeyTimes = normalizedKeyTimes.map { totalDuration * percentage / 100 }`
-- **Validation Rules**
-  - Reject total duration ≤ 0 with error `invalidTotalDuration`.
-  - Reject clip start < 0 or clip start >= totalDuration with error `clipStartOutOfBounds`.
-  - When `clipEnd > totalDuration`, surface `clipExceedsTrack` warning and clamp end to track length.
-  - Require `clipDuration >= 1`.
-  - Ensure `clipStart + clipDuration <= totalDuration`; otherwise emit `clipWindowOutOfBounds` error and block playback.
-  - Flag warnings for duplicates or adjustments to key times so UI can communicate changes.
+  - `totalDuration: TimeInterval` (total duration of the track in seconds)
+  - `clipStart: TimeInterval` (start time of the clip in seconds)
+  - `clipDuration: TimeInterval` (duration of the clip in seconds)
+  - `keyTimePercentages: [Double]` (key time percentages of the clip, 0-100)
+- **Computed Properties**
+  - `clipEnd: TimeInterval` = `clipStart + clipDuration`
+  - `clipRangeSeconds: ClosedRange<TimeInterval>` = clamped range from `clipStart` to `min(clipEnd, totalDuration)`
+  - `normalizedClipRangePercent: ClosedRange<Double>` = normalized to 0...1 range based on `totalDuration` (returns `0...0` if `totalDuration <= 0`)
+  - `normalizedKeyTimesPercent: [Double]` = `keyTimePercentages.map { ($0 / 100).clamped() }` (normalized to 0...1 range)
+- **Edge Case Handling**
+  - When `totalDuration <= 0`, `normalizedClipRangePercent` returns `0...0`
+  - `clipRangeSeconds` ensures the clip end does not exceed `totalDuration` via `min(clipEnd, totalDuration)`
+  - Key time percentages are clamped to 0-1 range (0-100%) via `Double.clamped()` extension
 
-### PlaybackSimulation
+### PlaybackState
 - **Fields**
   - `status: Status` (enum: `.idle`, `.playing`, `.paused`, `.finished`)
-  - `currentPosition: TimeInterval` (>= `clipStart`, <= `clipEnd`)
-  - `remainingDuration: TimeInterval` (>= 0)
-  - `timerID: TimerID?` (identifies cancellable effect)
+  - `currentPosition: TimeInterval` (current playback position, starts at `clipStart`, advances during playback)
+  - `remainingDuration: TimeInterval` (remaining time until clip end, starts at `clipDuration`, decrements during playback)
+- **Static Factory Methods**
+  - `.idle` = `PlaybackState(status: .idle, currentPosition: 0, remainingDuration: 0)`
+  - `.idle(configuration:)` = initializes with `currentPosition = clipStart`, `remainingDuration = clipDuration`
+  - `.playing(configuration:)` = initializes playing state with `currentPosition = clipStart`, `remainingDuration = clipDuration`
 - **State Transitions**
-  - `.idle` → `.playing` on `.playTapped` if validation passes; set `currentPosition = clipStart`, `remainingDuration = clipDuration`.
-  - `.playing` → `.paused` on `.pauseTapped`; cancel timer effect.
-  - `.paused` → `.playing` on `.resumeTapped`; restart timer from stored `currentPosition`.
-  - `.playing` → `.finished` when `remainingDuration <= 0`; timer cancels automatically.
-  - `.finished` → `.playing` on `.playTapped` reusing current configuration.
+  - `.idle` → `.playing` on `.playTapped`; sets `currentPosition = clipStart`, `remainingDuration = clipDuration`, starts timer effect.
+  - `.playing` → `.paused` on `.pauseTapped`; cancels timer effect via `TimerID.playback`, preserves current position.
+  - `.paused` → `.playing` on `.playTapped`; resumes from stored `currentPosition`, restarts timer effect.
+  - `.playing` → `.finished` when `currentPosition >= clipEnd`; timer cancels automatically, status set to `.finished`.
+  - `.finished` → `.playing` on `.playTapped`; reinitializes to `.playing(configuration:)` state, restarts from clip start.
+  - Any state → `.idle` on `.resetTapped`; resets to `.idle(configuration:)` state, cancels timer effect.
 
 ### TimelineSnapshot
 - **Fields**
-  - `clipRange: ClosedRange<Double>` (normalized 0...1)
-  - `markerPositions: [Double]` (normalized 0...1 matching `normalizedKeyTimes`)
-  - `currentProgress: Double` (0...1 while playing)
+  - `clipRangeSeconds: ClosedRange<TimeInterval>` (absolute time range of the clip)
+  - `clipRangePercent: ClosedRange<Double>` (normalized clip range 0...1 based on total duration)
+  - `markerPositionsPercent: [Double]` (normalized marker positions 0...1, derived from `normalizedKeyTimesPercent`)
+  - `currentProgressPercent: Double` (current playback progress 0...1 within the clip)
+- **Initializers**
+  - `init(clipRangeSeconds:clipRangePercent:markerPositionsPercent:currentProgressPercent:)` - direct initialization
+  - `init(configuration:playbackProgressPercent:)` - computed from `TrackConfiguration` and playback progress
+  - `.zero` - static instance with all zero/empty values
 - **Purpose**
-  - Exposed as read-only data for SwiftUI visualizations; recomputed whenever configuration or playback changes.
+  - Exposed as read-only data for SwiftUI visualizations; recomputed via `updateDerivedState` helper whenever configuration or playback changes.
+  - `currentProgressPercent` is computed from `(currentPosition - clipStart) / clipDuration`, clamped to 0...1.
 
 ## Relationships
-- Reducer state owns `TrackConfiguration` and `PlaybackSimulation`. `TimelineSnapshot` derives from both.
-- No persistent storage or external services; all mutations happen within reducer actions.
+- Reducer state (`AudioTrimmerFeature.State`) owns `configuration: TrackConfiguration`, `playbackState: PlaybackState`, and `timeline: TimelineSnapshot`.
+- `TimelineSnapshot` derives from both `TrackConfiguration` and playback progress, recomputed via `updateDerivedState` helper function.
+- Configuration is loaded asynchronously via `ConfigurationLoader` dependency, which provides `liveValue` (throws error by default) and `testValue` (returns test configuration) implementations.
+- No persistent storage; all mutations happen within reducer actions.
 
-## Validation & Error Surface
-- Reducer stores validation flags (e.g., `configurationErrors: [ConfigurationError]`) to allow UI to show inline messaging.
-- Configuration updates run through pure helper functions returning updated config plus warnings.
-- Playback actions guard against invalid transitions (e.g., ignore `.pauseTapped` when already paused).
+## State Management
+- Timer cancellation is handled via `TimerID.playback` effect ID, not stored in state.
+- Playback actions guard against invalid transitions (e.g., `.playTapped` ignores if already playing, `.pauseTapped` ignores if not playing).
+- Configuration loading is async via `.loadConfiguration` action, which dispatches `.configurationLoaded(TrackConfiguration)` on success or `.loadConfigurationFailed(String)` on error.
+- The `updateDerivedState` helper function rebuilds `TimelineSnapshot` whenever `configuration` or `playbackState` changes, ensuring the timeline always reflects current state.

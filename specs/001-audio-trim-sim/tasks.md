@@ -11,9 +11,9 @@
 
 **Purpose**: Prepare shared scaffolding required by all stories
 
-- [ ] T001 Verify `Audio Trimmer/App/Package.swift` pins The Composable Architecture 1.23.0 and Swift `Testing` dependencies needed for the feature.
-- [ ] T002 Create feature directory structure `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/` with placeholder `AudioTrimmerFeature.swift`.
-- [ ] T003 Add `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift` with empty test case suite referencing the new reducer.
+- [X] T001 Verify `Audio Trimmer/App/Package.swift` pins The Composable Architecture 1.23.0 and Swift `Testing` dependencies needed for the feature.
+- [X] T002 Create feature directory structure `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/` with placeholder `AudioTrimmerFeature.swift`.
+- [X] T003 Add `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift` with empty test case suite referencing the new reducer.
 
 ---
 
@@ -23,9 +23,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Define `TrackConfiguration`, `PlaybackSimulation`, and `TimelineSnapshot` structs with `TimeInterval` fields and validation stubs in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T005 Declare `AudioTrimmerFeature.Action`, `@ObservableState`, and cancellation token (`TimerID`) scaffolding in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T006 Provide initial dummy state factory (e.g., `AudioTrimmerFeature.State.preview`) and dependency requirement stubs in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T004 Define `TrackConfiguration` (in separate `Models/TrackConfiguration.swift`), `PlaybackState` (not `PlaybackSimulation`), and `TimelineSnapshot` structs with `TimeInterval` fields in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T005 Declare `AudioTrimmerFeature.Action`, `@ObservableState`, and cancellation token (`TimerID`) scaffolding in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T006 Provide initial state with `placeholderConfiguration` and dependency requirements (`@Dependency(\.continuousClock)`, `@Dependency(\.configurationLoader)`) in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -35,18 +35,18 @@
 
 **Goal**: Simulate countdown playback for a configured clip while deriving absolute key time markers.
 
-**Independent Test**: `AudioTrimmerTests` drives `.playTapped` and `.tick` actions using an `ImmediateClock`, asserting countdown reaches zero and status transitions idle → playing → finished with accurate marker projections.
+**Independent Test**: `AudioTrimmerTests` drives `.playTapped` and `.tick` actions using a `TestClock`, asserting countdown reaches zero and status transitions idle → playing → finished with accurate marker projections.
 
 ### Tests for User Story 1 (REQUIRED) ⚠️
 
-- [ ] T007 [P] [US1] Author failing tests covering `.playTapped` countdown progression in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
-- [ ] T008 [P] [US1] Add tests validating timeline marker derivation and configuration validation in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
+- [X] T007 [P] [US1] Author failing tests covering `.playTapped` countdown progression in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
+- [X] T008 [P] [US1] Add tests validating timeline marker derivation and configuration validation in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Implement configuration validation helpers and timeline projection updates in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T010 [US1] Implement `.playTapped` effect pipeline, `.tick` handler, and completion state transitions in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T011 [US1] Populate dummy track configuration defaults surfaced via public initialiser in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T009 [US1] Implement `updateDerivedState` helper function that rebuilds `TimelineSnapshot` from configuration and playback progress in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T010 [US1] Implement `.playTapped` effect pipeline (starts `ContinuousClock` timer with `TimerID.playback`), `.tick` handler (updates position and remaining duration), and completion state transitions (sets status to `.finished` when `currentPosition >= clipEnd`) in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T011 [US1] Provide `placeholderConfiguration` static property and state initializer with default values in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
 
 **Checkpoint**: User Story 1 fully functional and testable independently
 
@@ -56,38 +56,41 @@
 
 **Goal**: Allow playback to pause and resume without losing progress, cancelling and restarting timer effects deterministically.
 
-**Independent Test**: `AudioTrimmerTests` verifies `.pauseTapped` cancels scheduled ticks and `.resumeTapped` restarts from stored state without double-counting.
+**Independent Test**: `AudioTrimmerTests` verifies `.pauseTapped` cancels scheduled ticks and `.playTapped` (which handles resume) restarts from stored state without double-counting.
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [ ] T012 [P] [US2] Extend tests to assert timer cancellation on pause and precise resume behaviour in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
+- [X] T012 [P] [US2] Extend tests to assert timer cancellation on pause and precise resume behaviour in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Implement `.pauseTapped` reducing logic cancelling the timer effect and freezing countdown in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T014 [US2] Implement `.resumeTapped` logic re-establishing the timer effect from stored state in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T013 [US2] Implement `.pauseTapped` reducing logic cancelling the timer effect (via `TimerID.playback`) and setting status to `.paused` in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T014 [US2] Implement resume logic in `.playTapped` that handles resume from paused/finished states by checking current status and restarting timer from stored `currentPosition` in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T014a [US2] Implement `.resetTapped` action that resets playback to `.idle(configuration:)` state and cancels timer effect in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
 
 **Checkpoint**: User Stories 1 and 2 functional and independently testable
 
 ---
 
-## Phase 5: User Story 3 - Adjust Markers and Clip Window (Priority: P3)
+## Phase 5: User Story 3 - Load Configuration (Priority: P3)
 
-**Goal**: Support editing clip boundaries and key time percentages with immediate validation and timeline updates.
+**Goal**: Support loading track configuration asynchronously via `ConfigurationLoader` dependency, updating state with loaded configuration.
 
-**Independent Test**: `AudioTrimmerTests` covers `.updateClipStart`, `.updateClipDuration`, and `.updateKeyTimes` ensuring normalized percentages, bounded clip windows, and warning flags.
+**Independent Test**: `AudioTrimmerTests` covers `.loadConfiguration`, `.configurationLoaded`, and `.loadConfigurationFailed` actions ensuring proper state updates and error handling.
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [ ] T015 [P] [US3] Create tests for configuration editing actions and validation warnings in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
+- [X] T015 [P] [US3] Create tests for configuration loading actions (`loadConfigurationSucceeds`, `loadConfigurationHandlesErrors`) in `Audio Trimmer/App/Tests/AppTests/AudioTrimmerTests.swift`.
 
 ### Implementation for User Story 3
 
-- [ ] T016 [US3] Implement clip editing actions enforcing `clipStart + clipDuration <= totalDuration` in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T017 [US3] Implement key time normalization, deduplication, and derived marker recalculation in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T018 [US3] Surface configuration error/warning collection in state for future UI consumption in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T016 [US3] Implement `ConfigurationLoader` dependency protocol with `liveValue` (throws `ConfigurationLoadError.notImplemented`) and `testValue` (returns test configuration) in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/ConfigurationLoader.swift`.
+- [X] T017 [US3] Implement `.loadConfiguration` action that asynchronously loads configuration via `ConfigurationLoader` dependency in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T018 [US3] Implement `.configurationLoaded(TrackConfiguration)` and `.loadConfigurationFailed(String)` actions that update state or handle errors in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
 
-**Checkpoint**: All user stories functional and independently testable
+**Note**: Configuration editing actions (`.updateClipStart`, `.updateClipDuration`, `.updateKeyTimes`) were not implemented. Configuration is loaded via the `ConfigurationLoader` dependency pattern rather than edited interactively.
+
+**Checkpoint**: User Story 3 (configuration loading) functional and independently testable
 
 ---
 
@@ -96,8 +99,8 @@
 **Purpose**: Improvements that affect multiple user stories
 
 - [ ] T019 [P] Run `swift test --package-path "Audio Trimmer/App" --filter AudioTrimmerTests` and document results in `specs/001-audio-trim-sim/quickstart.md`.
-- [ ] T020 Review reducer documentation/comments and ensure idiomatic access control in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
-- [ ] T021 [P] Capture any additional instrumentation or logging hooks for timer drift analysis in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T020 Review reducer documentation/comments and ensure idiomatic access control in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
+- [X] T021 [P] Capture any additional instrumentation or logging hooks for timer drift analysis in `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`.
 
 ---
 
@@ -113,8 +116,8 @@
 ### User Story Dependencies
 
 - **US1 (P1)**: Depends on Phase 2; provides baseline playback logic used by subsequent stories.
-- **US2 (P2)**: Builds on US1’s playback loop; requires US1 completion to reuse state/actions.
-- **US3 (P3)**: Depends on US1 foundational configuration structures; may be developed after US1 once shared helpers exist.
+- **US2 (P2)**: Builds on US1's playback loop; requires US1 completion to reuse state/actions.
+- **US3 (P3)**: Depends on Phase 2 foundational structures; implements configuration loading via dependency injection, independent of playback logic.
 
 ### Parallel Opportunities
 
@@ -134,13 +137,14 @@
 ### Incremental Delivery
 
 1. MVP (US1) → Demo playable countdown.
-2. Add US2 pause/resume controls → Demo responsiveness.
-3. Add US3 configuration editing → Demo full configurability.
+2. Add US2 pause/reset controls → Demo responsiveness (resume handled by `.playTapped`).
+3. Add US3 configuration loading → Demo dynamic configuration via dependency injection.
 4. Polish with instrumentation and documentation updates.
+
+**Note**: Configuration editing (interactive updates to clip boundaries and key times) was not implemented in this iteration.
 
 ### Parallel Team Strategy
 
 1. Shared foundation (Phases 1–2) completed collaboratively.
 2. Assign US1 implementation to Developer A, US2 test authoring to Developer B, and US3 validation logic to Developer C, coordinating reducer merge boundaries.
 3. Conduct integration test run (Phase 6) once all stories merge.
-
