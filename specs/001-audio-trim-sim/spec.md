@@ -81,12 +81,12 @@ The producer edits key time percentages and clip window values, observing immedi
 
 ### Functional Requirements
 
-- **FR-001**: System MUST capture track length input between 1 and 3,600 seconds and reject values outside this range with inline validation.
-- **FR-002**: System MUST accept a clip start offset and duration, enforcing that the resulting clip end does not exceed the configured track length.
+- **FR-001**: System MUST capture track length input greater than 0 seconds as a `TimeInterval` and reject non-positive values with inline validation.
+- **FR-002**: System MUST accept a clip start offset and duration, stored as `TimeInterval` values, enforcing that the resulting clip window stays within the configured track length (i.e., `clipStart >= 0` and `clipStart + clipDuration <= totalDuration`).
 - **FR-003**: System MUST allow entry of multiple key time percentages, normalize them to unique ascending values within 0–100, and surface derived absolute timestamps.
 - **FR-004**: System MUST provide play, pause, and resume controls that reflect the current playback state and disable invalid transitions (e.g., disable play while already playing).
 - **FR-005**: System MUST drive a simulated playback loop that emits one state update per second without relying on real audio files.
-- **FR-006**: System MUST decrement the remaining playback time each tick, stop automatically at zero, and reset the current second to the clip start for future runs.
+- **FR-006**: System MUST decrement the remaining playback time each tick using `TimeInterval` arithmetic, stop automatically at zero, and reset the current second to the clip start for future runs.
 - **FR-007**: System MUST cancel scheduled ticks immediately when paused and resume from the stored current position without skipping or doubling ticks.
 - **FR-008**: System MUST expose a read-only timeline model (including clip window and key markers) for SwiftUI to render progress indicators consistently during configuration and playback.
 
@@ -97,10 +97,10 @@ The producer edits key time percentages and clip window values, observing immedi
 
 ## Architecture & State Management *(mandatory)*
 
-- **Feature Reducers**: Introduce `AudioTrimSimulatorFeature` annotated with `@Reducer`, owning `@ObservableState` fields for `TrackConfiguration`, `PlaybackSimulation`, form validation flags, and derived timeline models. Actions include configuration updates, `playTapped`, `pauseTapped`, `resumeTapped`, `tick`, and `onAppear`. Effects: `playTapped` starts a `ContinuousClock`-driven timer sending `.tick` every second until cancellation or completion; `pauseTapped` cancels via a stable `TimerID`.
+- **Feature Reducers**: Introduce `AudioTrimmerFeature` annotated with `@Reducer`, owning `@ObservableState` fields for `TrackConfiguration`, `PlaybackSimulation`, form validation flags, and derived timeline models, with all duration and offset values represented as `TimeInterval`. Actions include configuration updates, `playTapped`, `pauseTapped`, `resumeTapped`, `tick`, and `onAppear`. Effects: `playTapped` starts a `ContinuousClock`-driven timer sending `.tick` every second until cancellation or completion; `pauseTapped` cancels via a stable `TimerID`.
 - **Dependencies**: Leverage `Dependency(\.continuousClock)` to supply a `Clock` instance; override with `ImmediateClock` within tests for deterministic ticking. Use `Dependency(\.date.now)` only for logging playback start timestamps if needed. No external audio services are invoked.
 - **Navigation**: Feature remains within existing navigation stack; exposed as a leaf reducer scoped from its parent via `Scope(state:action:)`. No modal or path-based navigation changes required.
-- **View Composition**: Create `AudioTrimSimulatorView` bound to `StoreOf<AudioTrimSimulatorFeature>` using `WithViewStore`. Present a `Form` for configuration fields, a `TimelineView` or custom `GeometryReader` visualization for markers, and a control bar with play/pause buttons bound to the store. Derived bindings use `@Bindable` for form inputs while playback progress observes state changes via `ProgressView`.
+- **View Composition**: Create `AudioTrimmerView` bound to `StoreOf<AudioTrimmerFeature>` using `WithViewStore`. Present a `Form` for configuration fields, a `TimelineView` or custom `GeometryReader` visualization for markers, and a control bar with play/pause buttons bound to the store. Derived bindings use `@Bindable` for form inputs while playback progress observes state changes via `ProgressView`.
 
 ## Success Criteria *(mandatory)*
 
