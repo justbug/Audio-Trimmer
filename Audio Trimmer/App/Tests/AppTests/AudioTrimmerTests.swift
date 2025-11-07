@@ -14,22 +14,30 @@ struct AudioTrimmerTests {
         let clock = context.clock
 
         await startPlayback(using: context)
+        
+        // Verify initial clipProgressPercent is 0 at clip start
+        #expect(store.state.timeline.clipProgressPercent == 0.0)
 
         let tickCount = Int(configuration.clipDuration)
         for tick in 1...tickCount {
             await clock.advance(by: .seconds(1))
             let expectedPosition = configuration.clipStart + TimeInterval(tick)
             let expectedRemaining = configuration.clipDuration - TimeInterval(tick)
-            let progress = playbackProgress(for: configuration, at: expectedPosition)
+            let expectedClipProgress = clipProgress(for: configuration, at: expectedPosition)
             await store.receive(.tick) {
                 $0.playbackState.currentPosition = expectedPosition
                 $0.playbackState.remainingDuration = max(expectedRemaining, 0)
-                $0.timeline = timeline(for: configuration, progress: progress)
+                $0.timeline = timeline(for: configuration, at: expectedPosition)
                 if expectedRemaining <= 0 {
                     $0.playbackState.status = .finished
                 }
             }
+            // Verify clipProgressPercent increases correctly during playback
+            #expect(store.state.timeline.clipProgressPercent == expectedClipProgress)
         }
+        
+        // Verify clipProgressPercent is 1.0 at clip end
+        #expect(store.state.timeline.clipProgressPercent == 1.0)
     }
 
     @MainActor
@@ -37,6 +45,8 @@ struct AudioTrimmerTests {
     func timelineSnapshotReflectsConfiguration() async throws {
         let context = try await makeConfiguredStore()
         #expect(context.store.state.timeline != .zero)
+        // Verify clipProgressPercent is 0 at clip start
+        #expect(context.store.state.timeline.clipProgressPercent == 0.0)
     }
 
     @MainActor
@@ -54,23 +64,28 @@ struct AudioTrimmerTests {
             await clock.advance(by: .seconds(1))
             let expectedPosition = configuration.clipStart + TimeInterval(tick)
             let expectedRemaining = configuration.clipDuration - TimeInterval(tick)
-            let progress = playbackProgress(for: configuration, at: expectedPosition)
+            let expectedClipProgress = clipProgress(for: configuration, at: expectedPosition)
             await store.receive(.tick) {
                 $0.playbackState.currentPosition = expectedPosition
                 $0.playbackState.remainingDuration = max(expectedRemaining, 0)
-                $0.timeline = timeline(for: configuration, progress: progress)
+                $0.timeline = timeline(for: configuration, at: expectedPosition)
                 if expectedRemaining <= 0 {
                     $0.playbackState.status = .finished
                 }
             }
+            // Verify clipProgressPercent increases during playback
+            #expect(store.state.timeline.clipProgressPercent == expectedClipProgress)
         }
 
         let pausedPosition = configuration.clipStart + TimeInterval(ticksBeforePause)
-        let pausedProgress = playbackProgress(for: configuration, at: pausedPosition)
+        let expectedPausedClipProgress = clipProgress(for: configuration, at: pausedPosition)
         await store.send(.pauseTapped) {
             $0.playbackState.status = .paused
-            $0.timeline = timeline(for: configuration, progress: pausedProgress)
+            $0.timeline = timeline(for: configuration, at: pausedPosition)
         }
+        
+        // Verify clipProgressPercent is maintained after pause
+        #expect(store.state.timeline.clipProgressPercent == expectedPausedClipProgress)
 
         let remainingDuration = store.state.playbackState.remainingDuration
         await clock.advance(by: .seconds(1))
@@ -93,8 +108,10 @@ struct AudioTrimmerTests {
         await store.receive(.configurationLoaded(loadedConfiguration)) {
             $0.configuration = loadedConfiguration
             $0.playbackState = .idle(configuration: loadedConfiguration)
-            $0.timeline = timeline(for: loadedConfiguration, progress: 0)
+            $0.timeline = timeline(for: loadedConfiguration, at: loadedConfiguration.clipStart)
         }
+        // Verify clipProgressPercent is 0 at clip start after loading configuration
+        #expect(store.state.timeline.clipProgressPercent == 0.0)
     }
 
     @MainActor
@@ -152,7 +169,7 @@ private extension AudioTrimmerTests {
         await store.receive(.configurationLoaded(configuration)) {
             $0.configuration = configuration
             $0.playbackState = .idle(configuration: configuration)
-            $0.timeline = timeline(for: configuration, progress: 0)
+            $0.timeline = timeline(for: configuration, at: configuration.clipStart)
         }
 
         return ConfiguredStoreContext(store: store, configuration: configuration, clock: clock)
@@ -164,7 +181,7 @@ private extension AudioTrimmerTests {
             $0.playbackState.status = .playing
             $0.playbackState.currentPosition = context.configuration.clipStart
             $0.playbackState.remainingDuration = context.configuration.clipDuration
-            $0.timeline = timeline(for: context.configuration, progress: 0)
+            $0.timeline = timeline(for: context.configuration, at: context.configuration.clipStart)
         }
     }
 
@@ -172,16 +189,33 @@ private extension AudioTrimmerTests {
         for configuration: TrackConfiguration,
         at position: TimeInterval
     ) -> Double {
-        ((position - configuration.clipStart) / configuration.clipDuration).clamped()
+        guard configuration.totalDuration > 0 else {
+            return 0
+        }
+        return (position / configuration.totalDuration).clamped()
+    }
+
+    func clipProgress(
+        for configuration: TrackConfiguration,
+        at position: TimeInterval
+    ) -> Double {
+        guard configuration.totalDuration > 0, configuration.clipDuration > 0 else {
+            return 0
+        }
+        let elapsed = position - configuration.clipStart
+        return (elapsed / configuration.clipDuration).clamped()
     }
 
     func timeline(
         for configuration: TrackConfiguration,
-        progress: Double
+        at position: TimeInterval
     ) -> AudioTrimmerFeature.TimelineSnapshot {
-        AudioTrimmerFeature.TimelineSnapshot(
+        let playbackProgress = playbackProgress(for: configuration, at: position)
+        let clipProgress = clipProgress(for: configuration, at: position)
+        return AudioTrimmerFeature.TimelineSnapshot(
             configuration: configuration,
-            playbackProgressPercent: progress
+            playbackProgressPercent: playbackProgress,
+            clipProgressPercent: clipProgress
         )
     }
 }

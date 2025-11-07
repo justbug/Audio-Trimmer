@@ -5,6 +5,10 @@ extension Double {
         "\(Int((self * 100).rounded()))%"
     }
     
+    func formattedPercentWithDecimal() -> String {
+        String(format: "%.1f%%", self * 100)
+    }
+    
     func clamped(_ lower: Double = 0, _ upper: Double = 1) -> Double {
         min(max(self, lower), upper)
     }

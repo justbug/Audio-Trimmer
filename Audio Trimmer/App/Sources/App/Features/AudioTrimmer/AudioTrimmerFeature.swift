@@ -65,25 +65,29 @@ struct AudioTrimmerFeature {
         let clipRangePercent: ClosedRange<Double>
         let markerPositionsPercent: [Double]
         let currentProgressPercent: Double
+        let clipProgressPercent: Double
         
         init(
             clipRangeSeconds: ClosedRange<TimeInterval>,
             clipRangePercent: ClosedRange<Double>,
             markerPositionsPercent: [Double],
-            currentProgressPercent: Double
+            currentProgressPercent: Double,
+            clipProgressPercent: Double
         ) {
             self.clipRangeSeconds = clipRangeSeconds
             self.clipRangePercent = clipRangePercent
             self.markerPositionsPercent = markerPositionsPercent
             self.currentProgressPercent = currentProgressPercent
+            self.clipProgressPercent = clipProgressPercent
         }
         
-        init(configuration: TrackConfiguration, playbackProgressPercent: Double) {
+        init(configuration: TrackConfiguration, playbackProgressPercent: Double, clipProgressPercent: Double) {
             self.init(
                 clipRangeSeconds: configuration.clipRangeSeconds,
                 clipRangePercent: configuration.normalizedClipRangePercent,
                 markerPositionsPercent: configuration.normalizedKeyTimesPercent,
-                currentProgressPercent: playbackProgressPercent
+                currentProgressPercent: playbackProgressPercent,
+                clipProgressPercent: clipProgressPercent
             )
         }
         
@@ -92,7 +96,8 @@ struct AudioTrimmerFeature {
                 clipRangeSeconds: 0...0,
                 clipRangePercent: 0...0,
                 markerPositionsPercent: [],
-                currentProgressPercent: 0
+                currentProgressPercent: 0,
+                clipProgressPercent: 0
             )
         }()
     }
@@ -184,19 +189,24 @@ struct AudioTrimmerFeature {
     private func updateDerivedState(
         _ state: inout State
     ) {
+        let configuration = state.configuration
         let playbackProgressPercent: Double = {
-            let configuration = state.configuration
-            guard configuration.clipDuration > 0 else {
+            guard configuration.totalDuration > 0 else {
                 return 0
             }
-
+            return Double(state.playbackState.currentPosition / configuration.totalDuration).clamped()
+        }()
+        let clipProgressPercent: Double = {
+            guard configuration.totalDuration > 0 else {
+                return 0
+            }
             let elapsed = state.playbackState.currentPosition - configuration.clipStart
             return Double(elapsed / configuration.clipDuration).clamped()
         }()
-
         state.timeline = .init(
             configuration: state.configuration,
-            playbackProgressPercent: playbackProgressPercent
+            playbackProgressPercent: playbackProgressPercent,
+            clipProgressPercent: clipProgressPercent
         )
     }
 }

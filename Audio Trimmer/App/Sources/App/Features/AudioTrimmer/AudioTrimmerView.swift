@@ -61,7 +61,7 @@ private extension AudioTrimmerView {
             TimelineTrackView(
                 clipRange: store.timeline.clipRangePercent,
                 markers: store.timeline.markerPositionsPercent,
-                progress: store.timeline.currentProgressPercent
+                progress: store.timeline.clipProgressPercent,
             )
             .frame(height: 44)
         }
@@ -77,11 +77,11 @@ private extension AudioTrimmerView {
             )
             DetailRow(
                 label: "Clip duration",
-                value: "\(store.configuration.clipDuration.formattedSeconds()) (\(clipCoveragePercent))"
+                value: store.configuration.clipDuration.formattedSeconds()
             )
             DetailRow(
                 label: "Clip position",
-                value: "\(store.timeline.clipRangePercent.lowerBound.formattedPercent()) – \(store.timeline.clipRangePercent.upperBound.formattedPercent()) of track"
+                value: "\(store.timeline.clipRangePercent.lowerBound.formattedPercentWithDecimal()) – \(store.timeline.clipRangePercent.upperBound.formattedPercentWithDecimal()) of track"
             )
         }
     }
@@ -143,13 +143,6 @@ private extension AudioTrimmerView {
     var playButtonIcon: String {
         store.playbackState.status == .playing ? "pause.fill" : "play.fill"
     }
-
-    var timelineSubtitle: String {
-        let currentPosition = store.playbackState.currentPosition.formattedTime()
-        let clipEnd = store.configuration.clipEnd.formattedTime()
-        let progressPercent = String(format: "%.1f%%", store.timeline.currentProgressPercent * 100)
-        return "\(currentPosition) → \(clipEnd) · \(progressPercent) of clip"
-    }
     
     var timelineSubtitlePrefix: String {
         let currentPosition = store.playbackState.currentPosition.formattedTime()
@@ -158,7 +151,7 @@ private extension AudioTrimmerView {
     }
     
     var progressPercentText: String {
-        String(format: "%.1f%%", store.timeline.currentProgressPercent * 100)
+        store.timeline.currentProgressPercent.formattedPercentWithDecimal()
     }
     
     func playButtonAction() {
@@ -258,7 +251,8 @@ private struct DetailRow: View {
                     clipRangeSeconds: 5...15,
                     clipRangePercent: 0.04...0.12,
                     markerPositionsPercent: [0.25, 0.75],
-                    currentProgressPercent: 0
+                    currentProgressPercent: 0,
+                    clipProgressPercent: 0
                 )
             )
         ) {
