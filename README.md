@@ -13,10 +13,10 @@ simulator builds.
 ```text
 Audio Trimmer/
 ├─ App/Package.swift                      # SwiftPM manifest for the reusable package
-├─ App/Sources/App/App.swift              # SwiftUI entry point used by the iOS shell
+├─ App/Sources/App/RootView.swift         # SwiftUI entry point using TCA architecture
 ├─ App/Sources/App/Features/AudioTrimmer/ # Audio trimming feature reducer & dependencies
 ├─ App/Sources/App/Models/                # Cross-platform domain models
-├─ App/Sources/App/Extensions/            # Shared helpers
+├─ App/Sources/App/Extensions/            # Shared helpers (Double+Extensions, TimeInterval+Extensions)
 ├─ App/Tests/AppTests/                    # Swift Testing + TCA TestStore coverage
 ├─ Audio Trimmer.xcodeproj                # iOS shell + asset catalog
 └─ README.md                              # Single source of truth for build & architecture
@@ -59,7 +59,8 @@ Audio Trimmer/
 - **Effects** start a cancellable timer (`TimerID.playback`) when playback begins and cancel it when
   playback pauses, finishes, or resets. The reducer uses `@Dependency(\.continuousClock)` for timer delivery.
 - **Derived data** is rebuilt through `updateDerivedState`, ensuring `TimelineSnapshot` stays consistent with the
-  active configuration and playback progress.
+  active configuration and playback progress. The feature now tracks clip progress separately from overall playback
+  progress, providing more granular control over the trimming experience.
 
 ### Domain Models
 - `TrackConfiguration` (`Audio Trimmer/App/Sources/App/Models/TrackConfiguration.swift`) defines the raw trimming
@@ -67,7 +68,10 @@ Audio Trimmer/
   and keeps values clamped to valid bounds.
 - `AudioTrimmerFeature.TimelineSnapshot` converts the configuration into UI-ready percentages for the playback
   timeline and marker positions.
-- `Double+Clamping` (`Audio Trimmer/App/Sources/App/Extensions/Double+Clamping.swift`) centralizes normalization.
+- `Double+Extensions` (`Audio Trimmer/App/Sources/App/Extensions/Double+Extensions.swift`) provides formatting and
+  clamping utilities for numeric values.
+- `TimeInterval+Extensions` (`Audio Trimmer/App/Sources/App/Extensions/TimeInterval+Extensions.swift`) provides
+  time formatting methods for display purposes.
 
 ### Configuration Loading
 - `ConfigurationLoader` (`Audio Trimmer/App/Sources/App/Features/AudioTrimmer/ConfigurationLoader.swift`) is exposed
@@ -84,8 +88,14 @@ Audio Trimmer/
   ```
 
 ## SwiftUI Shell
-- `ContentView` (`Audio Trimmer/App/Sources/App/App.swift`) is a placeholder SwiftUI entry point. Integrate the
-  reducer by storing `StoreOf<AudioTrimmerFeature>` and wiring bindings/actions from the view layer.
+- `RootView` (`Audio Trimmer/App/Sources/App/RootView.swift`) is the main SwiftUI entry point that initializes
+  and provides the `AudioTrimmerFeature` store to the view hierarchy.
+- `AudioTrimmerView` (`Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerView.swift`) implements
+  the complete UI for audio trimming, including:
+  - Timeline visualization with clip range and key time markers
+  - Playback controls (play, pause, reset)
+  - Clip details display (start time, duration, end time)
+  - Progress tracking for both overall playback and clip-specific progress
 - Assets dedicated to iOS belong in `Audio Trimmer/Assets.xcassets`; cross-platform logic stays inside the Swift
   package so the package tests and the Xcode target share the same code.
 
@@ -95,6 +105,7 @@ Audio Trimmer/
   - Successful configuration loading updates state.
   - Playback timers tick until completion and respect pause/reset.
   - Timeline snapshots reflect derived ranges and markers.
+  - Clip progress tracking works independently from overall playback progress.
 - Run `swift test --package-path "Audio Trimmer/App"` before opening a pull request or merging changes.
 
 ## Development Workflow
@@ -106,7 +117,22 @@ Audio Trimmer/
   pull requests.
 - Prefer command-line builds/tests for fast feedback; use `xcodebuild … build` or Xcode previews for UI-only work.
 
+## Recent Changes
+
+### Added
+- Implemented `AudioTrimmerView` with complete UI components for audio trimming, playback controls, and configuration loading
+- Added extensions for `Double` and `TimeInterval` with formatting and clamping methods
+- Replaced `ContentView` with `RootView` to enhance app structure and introduce Composable Architecture
+
+### Changed
+- Enhanced `AudioTrimmerFeature` with clip progress tracking and updated UI to reflect new progress metrics
+- Optimized playback progress calculation by moving logic into `updateDerivedState` method
+
+### Chores
+- Updated `.gitignore` to include `buildServer.json` and `.clangModuleCache`
+
 ## Next Steps
-- Flesh out the SwiftUI layer by binding `ContentView` to an `AudioTrimmerFeature.Store`.
 - Implement a production `ConfigurationLoader` that fetches track metadata from disk or a service.
+- Add seek and scrub functionality to allow users to jump to specific positions in the audio.
 - Extend coverage with reducer tests for new behaviors (seek, scrub, waveform markers) as they are introduced.
+- Enhance the UI with waveform visualization and interactive marker editing.
