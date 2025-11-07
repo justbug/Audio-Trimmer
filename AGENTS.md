@@ -14,3 +14,10 @@ Leverage the Swift `Testing` package alongside TCA's `TestStore` to validate red
 
 ## Commit & Pull Request Guidelines
 Continue using Conventional Commits (e.g., `feat: add waveform trimming reducer`). PRs should describe the problem, summarize the solution, and include simulator screenshots or screen recordings for UI updates. Always list the exact verification commands (e.g., `swift test --package-path "Audio Trimmer/App"`). Link related issues and ensure reviewers can reproduce results using the build and test commands noted above.
+
+## Active Technologies
+- Swift 5.10 (Swift 5.9+ compatible with current toolchain) + The Composable Architecture 1.23.0, Swift `Clock` APIs (001-audio-trim-sim)
+- N/A (in-memory simulation only) (001-audio-trim-sim)
+
+## Recent Changes
+- 001-audio-trim-sim: Added Swift 5.10 (Swift 5.9+ compatible with current toolchain) + The Composable Architecture 1.23.0, Swift `Clock` APIs
