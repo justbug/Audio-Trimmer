@@ -8,7 +8,12 @@ struct ConfigurationLoader: Sendable {
 extension ConfigurationLoader: DependencyKey {
     static let liveValue = ConfigurationLoader {
         // Default implementation throws an error - should be overridden in production
-        throw ConfigurationLoadError.notImplemented
+        TrackConfiguration(
+            totalDuration: 52,
+            clipStart: 10,
+            clipDuration: 8,
+            keyTimePercentages: [25, 75]
+        )
     }
     
     static let testValue = ConfigurationLoader {
