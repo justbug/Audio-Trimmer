@@ -214,23 +214,6 @@ private struct TimelineTrackView: View {
     }
 }
 
-private struct DetailRow: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.body)
-                .bold()
-        }
-    }
-}
-
 #Preview {
     AudioTrimmerView(
         store: Store(
