@@ -184,20 +184,19 @@ struct AudioTrimmerFeature {
     private func updateDerivedState(
         _ state: inout State
     ) {
+        let playbackProgressPercent: Double = {
+            let configuration = state.configuration
+            guard configuration.clipDuration > 0 else {
+                return 0
+            }
+
+            let elapsed = state.playbackState.currentPosition - configuration.clipStart
+            return Double(elapsed / configuration.clipDuration).clamped()
+        }()
+
         state.timeline = .init(
             configuration: state.configuration,
-            playbackProgressPercent: state.playbackProgressPercent
+            playbackProgressPercent: playbackProgressPercent
         )
-    }
-}
-
-private extension AudioTrimmerFeature.State {
-    var playbackProgressPercent: Double {
-        guard configuration.clipDuration > 0 else {
-            return 0
-        }
-
-        let elapsed = playbackState.currentPosition - configuration.clipStart
-        return (elapsed / configuration.clipDuration).clamped()
     }
 }
