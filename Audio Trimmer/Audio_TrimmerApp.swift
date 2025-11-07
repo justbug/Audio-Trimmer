@@ -12,7 +12,7 @@ import App
 struct Audio_TrimmerApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
         }
     }
 }
