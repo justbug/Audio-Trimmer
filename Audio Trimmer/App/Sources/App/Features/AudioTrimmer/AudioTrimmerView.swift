@@ -3,16 +3,17 @@ import ComposableArchitecture
 
 struct AudioTrimmerView: View {
     @Bindable var store: StoreOf<AudioTrimmerFeature>
-
+    
     init(store: StoreOf<AudioTrimmerFeature>) {
         self.store = store
     }
-
+    
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 16) {
                 headerSection
                 timelineSection
+                waveformSection
                 clipDetailsSection
                 markersSection
                 controlsSection
@@ -40,13 +41,13 @@ private extension AudioTrimmerView {
             )
         }
     }
-
+    
     var timelineSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Clip Playback")
                     .font(.headline)
-
+                
                 HStack(spacing: 0) {
                     Text(timelineSubtitlePrefix)
                         .font(.subheadline)
@@ -57,7 +58,7 @@ private extension AudioTrimmerView {
                 }
                 .animation(.easeInOut(duration: 0.3), value: store.timeline.currentProgressPercent)
             }
-
+            
             TimelineTrackView(
                 clipRange: store.timeline.clipRangePercent,
                 markers: store.timeline.markerPositionsPercent,
@@ -66,7 +67,7 @@ private extension AudioTrimmerView {
             .frame(height: 44)
         }
     }
-
+    
     var clipDetailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Clip Details")
@@ -85,12 +86,12 @@ private extension AudioTrimmerView {
             )
         }
     }
-
+    
     var markersSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Key Times")
                 .font(.headline)
-
+            
             if store.configuration.keyTimePercentages.isEmpty {
                 Text("No key Times configured.")
                     .font(.subheadline)
@@ -107,12 +108,12 @@ private extension AudioTrimmerView {
             }
         }
     }
-
+    
     var controlsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Playback Controls")
                 .font(.headline)
-
+            
             HStack(spacing: 12) {
                 Button {
                     playButtonAction()
@@ -121,7 +122,7 @@ private extension AudioTrimmerView {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-
+                
                 Button {
                     store.send(.resetTapped)
                 } label: {
@@ -132,6 +133,10 @@ private extension AudioTrimmerView {
             }
         }
     }
+    
+    var waveformSection: some View {
+        WaveformView()
+    }
 }
 
 // MARK: - Helpers
@@ -139,7 +144,7 @@ private extension AudioTrimmerView {
     var playButtonLabel: String {
         store.playbackState.status == .playing ? "Pause" : "Play"
     }
-
+    
     var playButtonIcon: String {
         store.playbackState.status == .playing ? "pause.fill" : "play.fill"
     }
@@ -161,18 +166,63 @@ private extension AudioTrimmerView {
             store.send(.playTapped)
         }
     }
-
+    
     var clipCoveragePercent: String {
         guard store.configuration.totalDuration > 0 else {
             return "0%"
         }
-
+        
         let coverage = (store.configuration.clipDuration / store.configuration.totalDuration).clamped()
         return coverage.formattedPercent()
     }
 }
 
 // MARK: - Supporting Views
+
+private struct WaveformView: View {
+    private let imageCount = 10
+    private let itemSize: CGFloat = 55
+    private let contentInsetDivider: CGFloat = 3
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            ZStack {
+                waveformScrollView(width: width)
+                
+                TimelineBorderView()
+                    .frame(width: width / 3, height: itemSize)
+            }
+            .frame(width: width, height: itemSize)
+        }
+        .frame(height: itemSize)
+    }
+    
+    private func waveformScrollView(width: CGFloat) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(0..<imageCount, id: \.self) { _ in
+                    Image(systemName: "waveform")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: itemSize, height: itemSize)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(width: width, height: itemSize)
+        .contentMargins(.horizontal, width / contentInsetDivider, for: .scrollContent)
+    }
+    
+    private struct TimelineBorderView: View {
+        var body: some View {
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(.blue, lineWidth: 4)
+                .background(.clear)
+        }
+    }
+}
+
 private struct TimelineTrackView: View {
     let clipRange: ClosedRange<Double>
     let markers: [Double]
@@ -186,12 +236,12 @@ private struct TimelineTrackView: View {
             let clipEnd = width * clipRange.upperBound
             let clipWidth = max(clipEnd - clipStart, 0)
             let progressX = clipWidth * progress
-
+            
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color.secondary.opacity(0.2))
                     .frame(height: capsuleHeight)
-
+                
                 Capsule()
                     .fill(Color.accentColor.opacity(0.2))
                     .frame(width: clipWidth, height: capsuleHeight)
@@ -202,7 +252,7 @@ private struct TimelineTrackView: View {
                     .frame(width: progressX, height: capsuleHeight)
                     .offset(x: clipStart, y: 0)
                     .animation(.easeInOut(duration: 0.2), value: progressX)
-
+                
                 ForEach(Array(markers.enumerated()), id: \.offset) { _, marker in
                     Circle()
                         .fill(Color.accentColor)
