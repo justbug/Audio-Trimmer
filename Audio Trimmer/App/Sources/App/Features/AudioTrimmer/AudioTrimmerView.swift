@@ -135,7 +135,10 @@ private extension AudioTrimmerView {
     }
     
     var waveformSection: some View {
-        WaveformView()
+        WaveformView(
+            totalDuration: store.configuration.totalDuration,
+            clipDuration: store.configuration.clipDuration
+        )
     }
 }
 
@@ -180,9 +183,18 @@ private extension AudioTrimmerView {
 // MARK: - Supporting Views
 
 private struct WaveformView: View {
-    private let imageCount = 10
+    let totalDuration: TimeInterval
+    let clipDuration: TimeInterval
     private let itemSize: CGFloat = 55
     private let contentInsetDivider: CGFloat = 3
+    
+    private var imageCount: Int {
+        max(1, Int(ceil(totalDuration / 6)))
+    }
+    
+    private var borderWidth: CGFloat {
+        CGFloat(max(1, Int(ceil(clipDuration / 6)))) * itemSize
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -191,7 +203,7 @@ private struct WaveformView: View {
                 waveformScrollView(width: width)
                 
                 TimelineBorderView()
-                    .frame(width: width / 3, height: itemSize)
+                    .frame(width: borderWidth, height: itemSize)
             }
             .frame(width: width, height: itemSize)
         }
@@ -202,16 +214,20 @@ private struct WaveformView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(0..<imageCount, id: \.self) { _ in
-                    Image(systemName: "waveform")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: itemSize, height: itemSize)
-                        .foregroundStyle(.secondary)
+                    waveformImageView(itemSize: itemSize)
                 }
             }
         }
         .frame(width: width, height: itemSize)
         .contentMargins(.horizontal, width / contentInsetDivider, for: .scrollContent)
+    }
+    
+    private func waveformImageView(itemSize: CGFloat) -> some View {
+        Image(systemName: "waveform")
+            .resizable()
+            .scaledToFit()
+            .frame(width: itemSize, height: itemSize)
+            .foregroundStyle(.secondary)
     }
     
     private struct TimelineBorderView: View {
@@ -270,14 +286,14 @@ private struct TimelineTrackView: View {
             initialState: AudioTrimmerFeature.State(
                 configuration: TrackConfiguration(
                     totalDuration: 120,
-                    clipStart: 5,
-                    clipDuration: 10,
+                    clipStart: 6,
+                    clipDuration: 6,
                     keyTimePercentages: [25, 75]
                 ),
                 playbackState: .idle(configuration: TrackConfiguration(
                     totalDuration: 120,
-                    clipStart: 5,
-                    clipDuration: 10,
+                    clipStart: 6,
+                    clipDuration: 6,
                     keyTimePercentages: [25, 75]
                 )),
                 timeline: AudioTrimmerFeature.TimelineSnapshot(

@@ -9,9 +9,9 @@ extension ConfigurationLoader: DependencyKey {
     static let liveValue = ConfigurationLoader {
         // Default implementation throws an error - should be overridden in production
         TrackConfiguration(
-            totalDuration: 52,
-            clipStart: 10,
-            clipDuration: 8,
+            totalDuration: 60,
+            clipStart: 0,
+            clipDuration: 6,
             keyTimePercentages: [25, 75]
         )
     }
