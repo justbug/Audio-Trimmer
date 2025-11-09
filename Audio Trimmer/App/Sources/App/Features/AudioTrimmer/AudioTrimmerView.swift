@@ -136,9 +136,7 @@ private extension AudioTrimmerView {
     
     var waveformSection: some View {
         WaveformView(
-            totalDuration: store.configuration.totalDuration,
-            clipStart: store.configuration.clipStart,
-            clipDuration: store.configuration.clipDuration
+            store: store.scope(state: \.waveform, action: \.waveform)
         )
     }
 }

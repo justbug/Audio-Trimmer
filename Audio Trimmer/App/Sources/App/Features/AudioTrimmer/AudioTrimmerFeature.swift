@@ -8,15 +8,22 @@ struct AudioTrimmerFeature {
         var configuration: TrackConfiguration
         var playbackState: PlaybackState
         var timeline: TimelineSnapshot
+        var waveform: WaveformFeature.State
 
         init(
             configuration: TrackConfiguration? = nil,
             playbackState: PlaybackState = .idle,
             timeline: TimelineSnapshot = .zero
         ) {
-            self.configuration = configuration ?? State.placeholderConfiguration
+            let config = configuration ?? State.placeholderConfiguration
+            self.configuration = config
             self.playbackState = playbackState
             self.timeline = timeline
+            self.waveform = WaveformFeature.State(
+                totalDuration: config.totalDuration,
+                clipStart: config.clipStart,
+                clipDuration: config.clipDuration
+            )
         }
         
         static let placeholderConfiguration = TrackConfiguration(
@@ -35,6 +42,7 @@ struct AudioTrimmerFeature {
         case loadConfiguration
         case configurationLoaded(TrackConfiguration)
         case loadConfigurationFailed(String)
+        case waveform(WaveformFeature.Action)
     }
 
     struct PlaybackState: Equatable {
@@ -111,8 +119,13 @@ struct AudioTrimmerFeature {
     static let minimumClipDuration: TimeInterval = 1
 
     var body: some ReducerOf<Self> {
+        Scope(state: \.waveform, action: \.waveform) {
+            WaveformFeature()
+        }
         Reduce { (state, action) -> Effect<Action> in
             switch action {
+            case .waveform:
+                return .none
             case .playTapped:
                 guard state.playbackState.status != PlaybackState.Status.playing else {
                     return .none
@@ -176,8 +189,16 @@ struct AudioTrimmerFeature {
             case .configurationLoaded(let configuration):
                 state.configuration = configuration
                 state.playbackState = .idle(configuration: configuration)
+                // Update waveform state with new configuration
+                state.waveform = WaveformFeature.State(
+                    totalDuration: configuration.totalDuration,
+                    clipStart: configuration.clipStart,
+                    clipDuration: configuration.clipDuration
+                )
+                // Calculate target scroll index based on clipStart
+                let targetIndex = Int(configuration.clipStart / 6)
                 updateDerivedState(&state)
-                return .none
+                return .send(.waveform(.scrollToIndex(targetIndex)))
             case .loadConfigurationFailed(let error):
                 print("Error loading configuration: \(error)")
                 return .none

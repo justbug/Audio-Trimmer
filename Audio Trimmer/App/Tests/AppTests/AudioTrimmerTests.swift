@@ -109,6 +109,14 @@ struct AudioTrimmerTests {
             $0.configuration = loadedConfiguration
             $0.playbackState = .idle(configuration: loadedConfiguration)
             $0.timeline = timeline(for: loadedConfiguration, at: loadedConfiguration.clipStart)
+            $0.waveform = WaveformFeature.State(
+                totalDuration: loadedConfiguration.totalDuration,
+                clipStart: loadedConfiguration.clipStart,
+                clipDuration: loadedConfiguration.clipDuration
+            )
+        }
+        await store.receive(.waveform(.scrollToIndex(Int(loadedConfiguration.clipStart / 6)))) {
+            $0.waveform.scrollTargetIndex = Int(loadedConfiguration.clipStart / 6)
         }
         // Verify clipProgressPercent is 0 at clip start after loading configuration
         #expect(store.state.timeline.clipProgressPercent == 0.0)
@@ -170,6 +178,14 @@ private extension AudioTrimmerTests {
             $0.configuration = configuration
             $0.playbackState = .idle(configuration: configuration)
             $0.timeline = timeline(for: configuration, at: configuration.clipStart)
+            $0.waveform = WaveformFeature.State(
+                totalDuration: configuration.totalDuration,
+                clipStart: configuration.clipStart,
+                clipDuration: configuration.clipDuration
+            )
+        }
+        await store.receive(.waveform(.scrollToIndex(Int(configuration.clipStart / 6)))) {
+            $0.waveform.scrollTargetIndex = Int(configuration.clipStart / 6)
         }
 
         return ConfiguredStoreContext(store: store, configuration: configuration, clock: clock)

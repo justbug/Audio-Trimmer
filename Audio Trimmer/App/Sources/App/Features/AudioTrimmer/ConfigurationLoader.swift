@@ -10,7 +10,7 @@ extension ConfigurationLoader: DependencyKey {
         // Default implementation throws an error - should be overridden in production
         TrackConfiguration(
             totalDuration: 60,
-            clipStart: 0,
+            clipStart: 6,
             clipDuration: 6,
             keyTimePercentages: [25, 75]
         )
