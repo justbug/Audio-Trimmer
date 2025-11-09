@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "F58C0E6C-80E9-4F1C-8DF2-04044EBEBDEB",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Audio Trimmer.xcodeproj",
+      "identifier" : "4DADEE1F2EBB4C07002CDA47",
+      "name" : "Audio Trimmer"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Audio Trimmer\/App",
+        "identifier" : "AppTests",
+        "name" : "AppTests"
+      }
+    }
+  ],
+  "version" : 1
+}

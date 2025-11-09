@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		4D314B712EBE264300005593 /* App in Frameworks */ = {isa = PBXBuildFile; productRef = 4D768FF52EBB51110035298C /* App */; };
+		4D888AFE2EC0E19A00971116 /* App in Frameworks */ = {isa = PBXBuildFile; productRef = 4D7690282EBB62B70035298C /* App */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		4D6FFE202EBC5A00008268C5 /* App.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = App.xctestplan; path = "Audio Trimmer/App/Tests/App.xctestplan"; sourceTree = "<group>"; };
+		4D888B052EC0E1E000971116 /* Audio Trimmer.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Audio Trimmer.xctestplan"; path = "Audio Trimmer/Audio Trimmer.xctestplan"; sourceTree = "<group>"; };
 		4DADEE202EBB4C07002CDA47 /* Audio Trimmer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Audio Trimmer.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -28,6 +30,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4D888AFE2EC0E19A00971116 /* App in Frameworks */,
 				4D314B712EBE264300005593 /* App in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -38,6 +41,7 @@
 		4DADEE172EBB4C07002CDA47 = {
 			isa = PBXGroup;
 			children = (
+				4D888B052EC0E1E000971116 /* Audio Trimmer.xctestplan */,
 				4D6FFE202EBC5A00008268C5 /* App.xctestplan */,
 				4DADEE222EBB4C07002CDA47 /* Audio Trimmer */,
 				4DADEE212EBB4C07002CDA47 /* Products */,
