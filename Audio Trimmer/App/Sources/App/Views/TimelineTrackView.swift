@@ -5,7 +5,6 @@ struct TimelineTrackView: View {
     let markers: [Double]
     let progress: Double
     let capsuleHeight: CGFloat = 12
-    let clipWidthScale: CGFloat = 1.5
     let onMarkerTapped: ((Double) -> Void)?
     
     var body: some View {
@@ -13,12 +12,15 @@ struct TimelineTrackView: View {
             let width = proxy.size.width
             let clipStart = width * clipRange.lowerBound
             let clipEnd = width * clipRange.upperBound
-            let clipWidth = max(clipEnd - clipStart, 0) * clipWidthScale
-            // Limit clipWidth to not exceed view bounds
-            let constrainedClipWidth = min(clipWidth, max(0, width - clipStart))
+            let clipWidth = max(clipEnd - clipStart, 0)
+            
+            // Ensure clip doesn't extend beyond view bounds
+            let adjustedClipStart = max(0, min(clipStart, width - clipWidth))
+            let constrainedClipWidth = min(clipWidth, width - adjustedClipStart)
+            
             let progressX = constrainedClipWidth * progress
-            // Limit progressX to not exceed view bounds
-            let constrainedProgressX = min(progressX, max(0, width - clipStart))
+            // Limit progressX to not exceed the constrained clip width
+            let constrainedProgressX = min(progressX, constrainedClipWidth)
             
             ZStack(alignment: .leading) {
                 Capsule()
@@ -28,17 +30,17 @@ struct TimelineTrackView: View {
                 Capsule()
                     .fill(Color.accentColor.opacity(0.2))
                     .frame(width: constrainedClipWidth, height: capsuleHeight)
-                    .offset(x: clipStart)
+                    .offset(x: adjustedClipStart)
                 
                 Capsule()
                     .fill(Color.yellow)
                     .frame(width: constrainedProgressX, height: capsuleHeight)
-                    .offset(x: clipStart, y: 0)
+                    .offset(x: adjustedClipStart, y: 0)
                     .animation(.easeInOut(duration: 0.2), value: constrainedProgressX)
                 
                 ForEach(Array(markers.enumerated()), id: \.offset) { _, marker in
                     Circle()
-                        .fill(Color.accentColor)
+                        .fill(Color.accentColor.opacity(0.5))
                         .frame(width: 15, height: 15)
                         .offset(x: width * marker, y: 0)
                         .onTapGesture {
