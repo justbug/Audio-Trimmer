@@ -277,6 +277,11 @@ graph LR
 
 ## Recent Changes
 
+### Fixed
+- Fixed default values in `TrackSettingsFeature` state to provide more accurate initial values (total duration: 55, clip percent: 6) for better user experience
+- Fixed clip positioning and bounds handling in `TimelineTrackView` to prevent visual elements from exceeding view boundaries
+- Improved marker visibility in `TimelineTrackView` by adjusting opacity for better visual distinction
+
 ### Added
 - Added drag support for waveform interaction, allowing users to adjust clip start position by dragging the waveform
 - Added automatic playback pause during waveform drag with resume functionality when drag ends
@@ -294,7 +299,8 @@ graph LR
 - Improved time formatting precision in `TimeInterval+Extensions.formattedSeconds()` to show one decimal place
 
 ### Changed
-- Updated default text field values in `TrackSettingsFeature` state to provide example values for better user experience
+- Updated default text field values in `TrackSettingsFeature` state to provide more accurate example values (total duration: 55, clip percent: 6) for better user experience
+- Improved `TimelineTrackView` clip width calculation by removing scale factor and implementing more precise bounds checking to ensure clips stay within view boundaries
 - Updated `AppRootView` navigation to use `IfLetStore` for conditional navigation to `AudioTrimmerView`
 - Updated `TrackSettingsView` layout to use `VStack` instead of `Group` for improved structure
 - Updated waveform scroll offset calculation to use valid clip start range instead of total duration
@@ -303,8 +309,6 @@ graph LR
 - Updated `AudioTrimmerView` to remove configuration loading on task completion
 - Enhanced test coverage for timeline initialization, waveform scroll offset, and clip progress percentage
 
-### Fixed
-- Fixed default text values in `TrackSettingsFeature` state to provide initial example values instead of empty strings
 
 ### Refactored
 - Refactored `AudioTrimmerTests` with helper functions (`expectTick`, `expectScrollOffsetUpdate`, `expectMarkerTappedStateUpdate`) to improve test readability and maintainability
