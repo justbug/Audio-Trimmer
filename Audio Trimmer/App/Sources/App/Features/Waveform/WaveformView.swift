@@ -14,7 +14,7 @@ struct WaveformView: View {
                 let width = geometry.size.width
                 waveformScrollView(width)
                 
-                TimelineBorderView()
+                TimelineBorderView(progressPercent: store.clipProgressPercent)
                     .frame(width: store.viewConfiguration.itemSize, height: store.viewConfiguration.itemSize)
                     .offset(x: width / 2 - store.viewConfiguration.borderWidth / 2, y: 0)
             }
@@ -61,10 +61,21 @@ struct WaveformView: View {
     }
     
     private struct TimelineBorderView: View {
+        let progressPercent: Double
+        
         var body: some View {
-            RoundedRectangle(cornerRadius: 4)
-                .stroke(.blue, lineWidth: 4)
-                .background(.clear)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background fill
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.blue.opacity(0.5))
+                        .frame(width: geometry.size.width * progressPercent.clamped(0, 1))
+                    
+                    // Stroke border
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(.blue, lineWidth: 4)
+                }
+            }
         }
     }
 }

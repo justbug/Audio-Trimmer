@@ -193,7 +193,8 @@ struct AudioTrimmerFeature {
                 state.waveform = WaveformFeature.State(
                     totalDuration: configuration.totalDuration,
                     clipStart: configuration.clipStart,
-                    clipDuration: configuration.clipDuration
+                    clipDuration: configuration.clipDuration,
+                    clipProgressPercent: 0
                 )
                 updateDerivedState(&state)
                 return .send(.waveform(.updateScrollOffsetFromClipStart))
@@ -227,5 +228,7 @@ struct AudioTrimmerFeature {
             playbackProgressPercent: playbackProgressPercent,
             clipProgressPercent: clipProgressPercent
         )
+        // Update waveform clipProgressPercent to keep it in sync
+        state.waveform.clipProgressPercent = clipProgressPercent
     }
 }

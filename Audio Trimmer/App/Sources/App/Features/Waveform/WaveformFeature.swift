@@ -28,6 +28,7 @@ struct WaveformFeature {
         var scrollOffset: CGFloat = 0
         var dragStartOffset: CGFloat = 0
         var isDragging: Bool = false
+        var clipProgressPercent: Double = 0
         let viewConfiguration: ViewConfiguration
 
         init(
@@ -37,6 +38,7 @@ struct WaveformFeature {
             scrollOffset: CGFloat = 0,
             dragStartOffset: CGFloat = 0,
             isDragging: Bool = false,
+            clipProgressPercent: Double = 0,
             viewConfiguration: ViewConfiguration = ViewConfiguration()
         ) {
             self.totalDuration = totalDuration
@@ -45,6 +47,7 @@ struct WaveformFeature {
             self.scrollOffset = scrollOffset
             self.dragStartOffset = dragStartOffset
             self.isDragging = isDragging
+            self.clipProgressPercent = clipProgressPercent
             self.viewConfiguration = viewConfiguration
         }
     }
