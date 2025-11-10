@@ -6,10 +6,10 @@ struct TrackSettingsFeature {
     @ObservableState
     struct State: Equatable {
         // Raw form fields (Strings for SwiftUI bindings)
-        var totalDurationText: String = ""
-        var keyTimesText: String = ""
-        var clipStartText: String = ""
-        var clipPercentText: String = ""
+        var totalDurationText: String = "123"
+        var keyTimesText: String = "8, 35, 50, 66"
+        var clipStartText: String = "8"
+        var clipPercentText: String = "3"
         
         // Field-level error messages
         var totalDurationError: String?
