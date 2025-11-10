@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: Track Settings Contracts
+  version: 1.0.0
+  description: >
+    Conceptual contract for creating a trimming session configuration. Although implemented
+    locally in-app, this contract captures validation and mapping semantics in a technology-agnostic way.
+servers:
+  - url: https://local.app/contract
+paths:
+  /trimming-sessions:
+    post:
+      summary: Create a trimming session from user inputs
+      description: Validate inputs and return a TrackConfiguration with clipDuration computed from clipPercent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackSettingsInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackConfiguration'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrors'
+components:
+  schemas:
+    TrackSettingsInput:
+      type: object
+      required: [totalDuration, clipStart, clipPercent, keyTimes]
+      properties:
+        totalDuration:
+            type: number
+            format: double
+            minimum: 0
+            exclusiveMinimum: true
+        clipStart:
+            type: number
+            format: double
+            minimum: 0
+        clipPercent:
+            type: number
+            format: double
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 100
+        keyTimes:
+            type: array
+            items:
+              type: number
+              format: double
+              minimum: 0
+              maximum: 100
+            minItems: 1
+    TrackConfiguration:
+      type: object
+      required: [totalDuration, clipStart, clipDuration, keyTimePercentages]
+      properties:
+        totalDuration:
+          type: number
+          format: double
+        clipStart:
+          type: number
+          format: double
+        clipDuration:
+          type: number
+          format: double
+        keyTimePercentages:
+          type: array
+          items:
+            type: number
+            format: double
+    ValidationErrors:
+      type: object
+      properties:
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+

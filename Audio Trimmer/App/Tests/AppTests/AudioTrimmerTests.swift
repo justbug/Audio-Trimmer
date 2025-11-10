@@ -28,6 +28,7 @@ struct AudioTrimmerTests {
                 $0.playbackState.currentPosition = expectedPosition
                 $0.playbackState.remainingDuration = max(expectedRemaining, 0)
                 $0.timeline = timeline(for: configuration, at: expectedPosition)
+                $0.waveform.clipProgressPercent = expectedClipProgress
                 if expectedRemaining <= 0 {
                     $0.playbackState.status = .finished
                 }
@@ -69,6 +70,7 @@ struct AudioTrimmerTests {
                 $0.playbackState.currentPosition = expectedPosition
                 $0.playbackState.remainingDuration = max(expectedRemaining, 0)
                 $0.timeline = timeline(for: configuration, at: expectedPosition)
+                $0.waveform.clipProgressPercent = expectedClipProgress
                 if expectedRemaining <= 0 {
                     $0.playbackState.status = .finished
                 }
@@ -94,54 +96,34 @@ struct AudioTrimmerTests {
     }
 
     @MainActor
-    @Test("loadConfiguration successfully loads and updates state")
-    func loadConfigurationSucceeds() async throws {
-        let loadedConfiguration = try await ConfigurationLoader.testValue.load()
-        let (store, _) = makeStore(
-            configurationLoader: ConfigurationLoader {
-                loadedConfiguration
-            }
+    @Test("onAppear initializes timeline and waveform scroll offset")
+    func onAppearInitializesState() async throws {
+        let configuration = TrackConfiguration(
+            totalDuration: 120,
+            clipStart: 5,
+            clipDuration: 10,
+            keyTimePercentages: [25, 75]
         )
+        let (store, _) = makeStore(initialState: AudioTrimmerFeature.State(configuration: configuration))
 
-        await store.send(.loadConfiguration)
-
-        await store.receive(.configurationLoaded(loadedConfiguration)) {
-            $0.configuration = loadedConfiguration
-            $0.playbackState = .idle(configuration: loadedConfiguration)
-            $0.timeline = timeline(for: loadedConfiguration, at: loadedConfiguration.clipStart)
-            $0.waveform = WaveformFeature.State(
-                totalDuration: loadedConfiguration.totalDuration,
-                clipStart: loadedConfiguration.clipStart,
-                clipDuration: loadedConfiguration.clipDuration
-            )
+        await store.send(.onAppear) {
+            $0.playbackState = .idle(configuration: configuration)
+            $0.timeline = timeline(for: configuration, at: configuration.clipStart)
         }
+
         await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
             // Calculate expected scroll offset
-            let percent = (loadedConfiguration.clipStart / loadedConfiguration.totalDuration).clamped()
+            let percent = (configuration.clipStart / configuration.totalDuration).clamped()
             let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
             let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
             $0.waveform.scrollOffset = -clampedOffset
             $0.waveform.dragStartOffset = -clampedOffset
         }
-        // Verify clipProgressPercent is 0 at clip start after loading configuration
+
+        // Verify timeline is initialized correctly
+        #expect(store.state.timeline != .zero)
         #expect(store.state.timeline.clipProgressPercent == 0.0)
-    }
-
-    @MainActor
-    @Test("loadConfiguration handles errors and sends loadConfigurationFailed action")
-    func loadConfigurationHandlesErrors() async throws {
-        let testError = NSError(domain: "TestError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to load configuration"])
-
-        let (store, _) = makeStore(
-            configurationLoader: ConfigurationLoader {
-                throw testError
-            }
-        )
-
-        await store.send(.loadConfiguration)
-
-        await store.receive(.loadConfigurationFailed("Failed to load configuration"))
-        // State should remain unchanged on error
+        #expect(store.state.timeline.currentProgressPercent == (configuration.clipStart / configuration.totalDuration))
     }
 
     @MainActor
@@ -340,18 +322,15 @@ private extension AudioTrimmerTests {
 
     @MainActor
     func makeStore(
-        clock providedClock: TestClock<Duration> = TestClock(),
-        configurationLoader: ConfigurationLoader? = nil
+        initialState: AudioTrimmerFeature.State = AudioTrimmerFeature.State(),
+        clock providedClock: TestClock<Duration> = TestClock()
     ) -> (store: TestStoreOf<AudioTrimmerFeature>, clock: TestClock<Duration>) {
         let store = TestStore(
-            initialState: AudioTrimmerFeature.State()
+            initialState: initialState
         ) {
             AudioTrimmerFeature()
         } withDependencies: {
             $0.continuousClock = providedClock
-            if let configurationLoader {
-                $0.configurationLoader = configurationLoader
-            }
         }
         return (store, providedClock)
     }
@@ -360,21 +339,22 @@ private extension AudioTrimmerTests {
     func makeConfiguredStore(
         clock initialClock: TestClock<Duration> = TestClock()
     ) async throws -> ConfiguredStoreContext {
-        let configuration = try await ConfigurationLoader.testValue.load()
-        let (store, clock) = makeStore(clock: initialClock)
+        let configuration = TrackConfiguration(
+            totalDuration: 120,
+            clipStart: 5,
+            clipDuration: 10,
+            keyTimePercentages: [25, 75]
+        )
+        let (store, clock) = makeStore(
+            initialState: AudioTrimmerFeature.State(configuration: configuration),
+            clock: initialClock
+        )
 
-        await store.send(.loadConfiguration)
-
-        await store.receive(.configurationLoaded(configuration)) {
-            $0.configuration = configuration
+        await store.send(.onAppear) {
             $0.playbackState = .idle(configuration: configuration)
             $0.timeline = timeline(for: configuration, at: configuration.clipStart)
-            $0.waveform = WaveformFeature.State(
-                totalDuration: configuration.totalDuration,
-                clipStart: configuration.clipStart,
-                clipDuration: configuration.clipDuration
-            )
         }
+
         await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
             // Calculate expected scroll offset
             let percent = (configuration.clipStart / configuration.totalDuration).clamped()

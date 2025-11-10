@@ -13,8 +13,9 @@ simulator builds.
 ```text
 Audio Trimmer/
 ├─ App/Package.swift                      # SwiftPM manifest for the reusable package
-├─ App/Sources/App/RootView.swift         # SwiftUI entry point using TCA architecture
+├─ App/Sources/App/Features/AppRoot/     # App root feature reducer & view for navigation
 ├─ App/Sources/App/Features/AudioTrimmer/ # Audio trimming feature reducer & dependencies
+├─ App/Sources/App/Features/TrackSettings/ # Track settings entry form feature reducer & view
 ├─ App/Sources/App/Features/Waveform/     # Waveform visualization feature reducer & view
 ├─ App/Sources/App/Models/                # Cross-platform domain models
 ├─ App/Sources/App/Extensions/            # Shared helpers (Double+Extensions, TimeInterval+Extensions)
@@ -47,24 +48,27 @@ Audio Trimmer/
   system and out of SwiftUI views.
 - Each feature reducer lives under `Audio Trimmer/App/Sources/App/Features/<FeatureName>/` and exposes its state,
   actions, and body from a single type.
-- Dependencies are surfaced through `DependencyValues`; the package currently provides a configurable
-  `ConfigurationLoader` and uses TCA's `continuousClock` for time-based effects.
+- Dependencies are surfaced through `DependencyValues`; the package uses TCA's `continuousClock` for time-based effects.
 - Views bind to `StoreOf<Feature>` and derive navigation/scoped state rather than owning mutable data.
+- Navigation is managed through TCA's `NavigationStackStore` with path-based state management in `AppRootFeature`.
 
 ### Project Architecture Diagram
 
 ```mermaid
 graph TB
     subgraph Entry["App Entry Point"]
-        RootView[RootView]
+        AppRootView[AppRootView]
     end
     
     subgraph Features["Features Layer"]
+        AppRootFeature["AppRootFeature @Reducer"]
+        TrackSettingsFeature["TrackSettingsFeature @Reducer"]
         AudioTrimmerFeature["AudioTrimmerFeature @Reducer"]
         WaveformFeature["WaveformFeature @Reducer"]
     end
     
     subgraph Views["Views Layer"]
+        TrackSettingsView[TrackSettingsView]
         AudioTrimmerView[AudioTrimmerView]
         WaveformView[WaveformView]
         TimelineTrackView[TimelineTrackView]
@@ -81,21 +85,24 @@ graph TB
     end
     
     subgraph Dependencies["Dependencies"]
-        ConfigLoader["ConfigurationLoader @DependencyKey"]
         Clock["continuousClock @Dependency"]
     end
     
-    RootView --> AudioTrimmerView
+    AppRootView --> TrackSettingsView
+    AppRootView --> AudioTrimmerView
+    TrackSettingsView --> TrackSettingsFeature
     AudioTrimmerView --> AudioTrimmerFeature
     AudioTrimmerView --> WaveformView
     AudioTrimmerView --> TimelineTrackView
     AudioTrimmerView --> DetailRow
     WaveformView --> WaveformFeature
     
+    AppRootFeature -->|scopes| TrackSettingsFeature
+    AppRootFeature -->|scopes| AudioTrimmerFeature
     AudioTrimmerFeature -->|scopes| WaveformFeature
     AudioTrimmerFeature --> TrackConfiguration
-    AudioTrimmerFeature --> ConfigLoader
     AudioTrimmerFeature --> Clock
+    TrackSettingsFeature --> TrackConfiguration
     
     TrackConfiguration --> DoubleExt
     TrackConfiguration --> TimeIntervalExt
@@ -113,6 +120,8 @@ graph LR
     end
     
     subgraph FeatureLayer["Feature Layer"]
+        ARF[AppRootFeature]
+        TSF[TrackSettingsFeature]
         ATF[AudioTrimmerFeature]
         WF[WaveformFeature]
     end
@@ -127,18 +136,20 @@ graph LR
     end
     
     subgraph DependencyLayer["Dependency Layer"]
-        CL[ConfigurationLoader]
         CC[continuousClock]
     end
     
+    TSV -.->|binds to| TSF
     AV -.->|binds to| ATF
     AV -.->|uses| TTV
     AV -.->|uses| DR
     WV -.->|binds to| WF
     
+    ARF -.->|composes| TSF
+    ARF -.->|composes| ATF
+    TSF -.->|uses| TC
     ATF -.->|composes| WF
     ATF -.->|uses| TC
-    ATF -.->|depends on| CL
     ATF -.->|depends on| CC
     
     TC -.->|uses| DE
@@ -149,13 +160,28 @@ graph LR
 - **Solid arrows (→)**: Direct composition/ownership
 - **Dashed arrows (-.->)**: Dependency/usage relationship
 
+### AppRootFeature
+`Audio Trimmer/App/Sources/App/Features/AppRoot/AppRootFeature.swift`
+
+- **State** manages the root navigation state with `TrackSettingsFeature.State` and a `StackState<Path.State>` for navigation paths.
+- **Actions** handle navigation path actions and delegate actions from `TrackSettingsFeature` to navigate to `AudioTrimmerFeature`.
+- **Navigation** uses TCA's path-based navigation system to manage transitions from track settings entry to audio trimming view.
+- **Composition** scopes `TrackSettingsFeature` and manages navigation to `AudioTrimmerFeature` through the path stack.
+
+### TrackSettingsFeature
+`Audio Trimmer/App/Sources/App/Features/TrackSettings/TrackSettingsFeature.swift`
+
+- **State** manages form input fields (total duration, key times, clip start, clip percent) with field-level error messages and computed `isConfirmEnabled` validation.
+- **Actions** handle text field bindings, confirm button taps, and delegate actions to communicate validated configuration to the parent.
+- **Validation** parses and validates input fields, normalizes key times (clamp, round, sort, unique), and maps valid inputs to `TrackConfiguration`.
+- **Error handling** provides field-specific error messages for invalid inputs and prevents navigation until all fields are valid.
+
 ### AudioTrimmerFeature
 `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`
 
-- **State** tracks the loaded `TrackConfiguration`, the current `PlaybackState`, a derived
-  `TimelineSnapshot`, and a scoped `WaveformFeature.State` for waveform visualization. A placeholder configuration supports showing the feature before data loads.
-- **Actions** cover playback controls (`playTapped`, `pauseTapped`, `resetTapped`, `tick`), data loading
-  (`loadConfiguration`, `configurationLoaded`, `loadConfigurationFailed`), marker interaction (`markerTapped`), and waveform actions (`waveform`).
+- **State** tracks the `TrackConfiguration` (passed via initialization), the current `PlaybackState`, a derived
+  `TimelineSnapshot`, and a scoped `WaveformFeature.State` for waveform visualization.
+- **Actions** cover playback controls (`playTapped`, `pauseTapped`, `resetTapped`, `tick`), view appearance (`onAppear`), marker interaction (`markerTapped`), and waveform actions (`waveform`).
 - **Effects** start a cancellable timer (`TimerID.playback`) when playback begins and cancel it when
   playback pauses, finishes, or resets. The reducer uses `@Dependency(\.continuousClock)` for timer delivery.
 - **Derived data** is rebuilt through `updateDerivedState`, ensuring `TimelineSnapshot` stays consistent with the
@@ -181,23 +207,15 @@ graph LR
 - `TimeInterval+Extensions` (`Audio Trimmer/App/Sources/App/Extensions/TimeInterval+Extensions.swift`) provides
   time formatting methods for display purposes.
 
-### Configuration Loading
-- `ConfigurationLoader` (`Audio Trimmer/App/Sources/App/Features/AudioTrimmer/ConfigurationLoader.swift`) is exposed
-  as a dependency with `liveValue` (throws `ConfigurationLoadError.notImplemented` by default) and `testValue`
-  (returns canned data for previews/tests).
-- Provide a live implementation at composition time, for example:
-  ```swift
-  store = Store(initialState: AudioTrimmerFeature.State()) {
-      AudioTrimmerFeature()
-          .dependency(\.configurationLoader, .init {
-              try await apiClient.fetchConfiguration()
-          })
-  }
-  ```
 
 ## SwiftUI Shell
-- `RootView` (`Audio Trimmer/App/Sources/App/RootView.swift`) is the main SwiftUI entry point that initializes
-  and provides the `AudioTrimmerFeature` store to the view hierarchy.
+- `AppRootView` (`Audio Trimmer/App/Sources/App/Features/AppRoot/AppRootView.swift`) is the main SwiftUI entry point that initializes
+  and provides the `AppRootFeature` store, managing navigation between `TrackSettingsView` and `AudioTrimmerView`.
+- `TrackSettingsView` (`Audio Trimmer/App/Sources/App/Features/TrackSettings/TrackSettingsView.swift`) provides the entry form for track configuration with:
+  - Input fields for track length, key times, clip start, and clip percent
+  - Real-time field validation with error messages
+  - Confirm button that enables only when all fields are valid
+  - Navigation to audio trimmer view upon successful validation
 - `AudioTrimmerView` (`Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerView.swift`) implements
   the complete UI for audio trimming, including:
   - Timeline visualization with clip range and key time markers
@@ -223,12 +241,18 @@ graph LR
 ## Testing
 - Tests live under `Audio Trimmer/App/Tests/AppTests/` and use the Swift `Testing` package alongside TCA's
   `TestStore`. The current coverage includes:
+  - **TrackSettingsTests.swift** verifies:
+    - Valid inputs navigate to AudioTrimmer with correct configuration.
+    - Invalid inputs show field-level errors and prevent navigation.
+    - Key times validation and normalization (clamp, round, sort, unique).
+    - Clip window validation (clip end must not exceed track length).
   - **AudioTrimmerTests.swift** verifies:
-    - Successful configuration loading updates state.
+    - Timeline and waveform initialization on view appearance.
     - Playback timers tick until completion and respect pause/reset.
     - Timeline snapshots reflect derived ranges and markers.
     - Clip progress tracking works independently from overall playback progress.
     - Marker tap interactions adjust clip position correctly.
+    - Waveform scroll offset synchronization with clip start.
   - **WaveformTests.swift** verifies:
     - Drag gesture state management (start, change, end).
     - Scroll offset synchronization with clip position.
@@ -248,27 +272,31 @@ graph LR
 ## Recent Changes
 
 ### Added
-- Implemented `WaveformFeature` reducer with state management for waveform visualization, drag-and-scroll functionality, and scroll offset synchronization
-- Added `WaveformView` component with interactive drag gesture support and dynamic layout based on clip duration
-- Added marker tap interaction in `TimelineTrackView` to allow users to adjust clip position by tapping key time markers
-- Moved `TimelineTrackView` to a separate file (`App/Sources/App/Views/TimelineTrackView.swift`) for better organization
-- Integrated `WaveformFeature` into `AudioTrimmerFeature` as a scoped child reducer for synchronized state management
-- Added comprehensive test coverage for `WaveformFeature` including drag gestures, scroll synchronization, and state management
-- Added test plan configuration for organized test execution
+- Implemented `AppRootFeature` and `AppRootView` for root-level navigation management using TCA's `NavigationStackStore`
+- Added `TrackSettingsFeature` and `TrackSettingsView` for track configuration entry form with validation
+- Added form input fields for track length, key times, clip start, and clip percent with real-time validation
+- Added field-level error messages and computed `isConfirmEnabled` state for form validation
+- Added key times normalization (clamp, round, sort, unique) and validation (0-100% range)
+- Added navigation from track settings to audio trimmer view with validated `TrackConfiguration`
+- Added comprehensive test coverage for `TrackSettingsFeature` including valid/invalid input scenarios
+- Enhanced `AudioTrimmerTests` to verify timeline and waveform initialization on view appearance
+- Improved time formatting precision in `TimeInterval+Extensions.formattedSeconds()` to show one decimal place
 
 ### Changed
-- Enhanced `AudioTrimmerFeature` to include `WaveformFeature.State` and handle waveform actions through scoped reducer composition
-- Updated waveform state management to use `scrollOffset` instead of `scrollTargetIndex` for more precise scroll control
-- Synchronized clip progress percentage between `AudioTrimmerFeature` and `WaveformFeature` for consistent UI updates
-- Improved `WaveformView` layout calculations and removed unused properties for cleaner implementation
-- Updated `AudioTrimmerView` to use scoped `WaveformFeature` store instead of direct property passing
+- Updated app entry point from `RootView` to `AppRootView` for enhanced navigation structure
+- Modified `AudioTrimmerFeature` to accept `TrackConfiguration` via initialization instead of loading from dependency
+- Updated `AudioTrimmerView` to remove configuration loading on task completion
+- Enhanced test coverage for timeline initialization, waveform scroll offset, and clip progress percentage
 
 ### Refactored
-- Cleaned up `WaveformFeature` and `WaveformView` by removing unused properties and simplifying layout calculations
-- Updated test files to use `scrollOffset` instead of `scrollTargetIndex` for consistency with new state management approach
+- Removed `ConfigurationLoader` dependency and configuration loading functionality from `AudioTrimmerFeature`
+- Restructured navigation to use path-based state management in `AppRootFeature` instead of direct state management
+- Simplified parsing and validation logic in `TrackSettingsFeature` with clearer error handling
+- Updated `AudioTrimmerFeature` to use `onAppear` action for initialization instead of configuration loading
 
 ## Next Steps
-- Implement a production `ConfigurationLoader` that fetches track metadata from disk or a service.
-- Add seek and scrub functionality to allow users to jump to specific positions in the audio.
-- Extend waveform visualization with actual audio waveform data rendering instead of placeholder icons.
-- Enhance marker editing to allow dragging markers to adjust clip boundaries dynamically.
+- Add validation enhancements to track settings (disable confirm button during validation, improved error messages)
+- Implement key times normalization UI feedback to show normalized values to users
+- Add seek and scrub functionality to allow users to jump to specific positions in the audio
+- Extend waveform visualization with actual audio waveform data rendering instead of placeholder icons
+- Enhance marker editing to allow dragging markers to adjust clip boundaries dynamically
