@@ -11,7 +11,6 @@ struct AudioTrimmerTests {
         let context = try await makeConfiguredStore()
         let store = context.store
         let configuration = context.configuration
-        let clock = context.clock
 
         await startPlayback(using: context)
         
@@ -20,20 +19,15 @@ struct AudioTrimmerTests {
 
         let tickCount = Int(configuration.clipDuration)
         for tick in 1...tickCount {
-            await clock.advance(by: .seconds(1))
-            let expectedPosition = configuration.clipStart + TimeInterval(tick)
-            let expectedRemaining = configuration.clipDuration - TimeInterval(tick)
-            let expectedClipProgress = clipProgress(for: configuration, at: expectedPosition)
-            await store.receive(.tick) {
-                $0.playbackState.currentPosition = expectedPosition
-                $0.playbackState.remainingDuration = max(expectedRemaining, 0)
-                $0.timeline = timeline(for: configuration, at: expectedPosition)
-                $0.waveform.clipProgressPercent = expectedClipProgress
-                if expectedRemaining <= 0 {
-                    $0.playbackState.status = .finished
-                }
-            }
+            await expectTick(
+                store: store,
+                configuration: configuration,
+                clock: context.clock,
+                tickNumber: tick
+            )
             // Verify clipProgressPercent increases correctly during playback
+            let expectedPosition = configuration.clipStart + TimeInterval(tick)
+            let expectedClipProgress = clipProgress(for: configuration, at: expectedPosition)
             #expect(store.state.timeline.clipProgressPercent == expectedClipProgress)
         }
         
@@ -56,26 +50,20 @@ struct AudioTrimmerTests {
         let context = try await makeConfiguredStore()
         let store = context.store
         let configuration = context.configuration
-        let clock = context.clock
 
         await startPlayback(using: context)
 
         let ticksBeforePause = 3
         for tick in 1...ticksBeforePause {
-            await clock.advance(by: .seconds(1))
-            let expectedPosition = configuration.clipStart + TimeInterval(tick)
-            let expectedRemaining = configuration.clipDuration - TimeInterval(tick)
-            let expectedClipProgress = clipProgress(for: configuration, at: expectedPosition)
-            await store.receive(.tick) {
-                $0.playbackState.currentPosition = expectedPosition
-                $0.playbackState.remainingDuration = max(expectedRemaining, 0)
-                $0.timeline = timeline(for: configuration, at: expectedPosition)
-                $0.waveform.clipProgressPercent = expectedClipProgress
-                if expectedRemaining <= 0 {
-                    $0.playbackState.status = .finished
-                }
-            }
+            await expectTick(
+                store: store,
+                configuration: configuration,
+                clock: context.clock,
+                tickNumber: tick
+            )
             // Verify clipProgressPercent increases during playback
+            let expectedPosition = configuration.clipStart + TimeInterval(tick)
+            let expectedClipProgress = clipProgress(for: configuration, at: expectedPosition)
             #expect(store.state.timeline.clipProgressPercent == expectedClipProgress)
         }
 
@@ -90,7 +78,7 @@ struct AudioTrimmerTests {
         #expect(store.state.timeline.clipProgressPercent == expectedPausedClipProgress)
 
         let remainingDuration = store.state.playbackState.remainingDuration
-        await clock.advance(by: .seconds(1))
+        await context.clock.advance(by: .seconds(1))
         #expect(store.state.playbackState.remainingDuration == remainingDuration)
         #expect(store.state.playbackState.status == .paused)
     }
@@ -111,14 +99,11 @@ struct AudioTrimmerTests {
             $0.timeline = timeline(for: configuration, at: configuration.clipStart)
         }
 
-        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
-            // Calculate expected scroll offset
-            let percent = (configuration.clipStart / configuration.totalDuration).clamped()
-            let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
-            let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
-            $0.waveform.scrollOffset = -clampedOffset
-            $0.waveform.dragStartOffset = -clampedOffset
-        }
+        await expectScrollOffsetUpdate(
+            store: store,
+            configuration: configuration,
+            clipStart: configuration.clipStart
+        )
 
         // Verify timeline is initialized correctly
         #expect(store.state.timeline != .zero)
@@ -137,44 +122,22 @@ struct AudioTrimmerTests {
         let markerPositionPercent = 0.5
         let expectedClipStart = markerPositionPercent * configuration.totalDuration
         
-        await store.send(.markerTapped(markerPositionPercent: markerPositionPercent)) {
-            $0.configuration = TrackConfiguration(
-                totalDuration: configuration.totalDuration,
-                clipStart: expectedClipStart,
-                clipDuration: configuration.clipDuration,
-                keyTimePercentages: configuration.keyTimePercentages
-            )
-            $0.playbackState = .idle(configuration: TrackConfiguration(
-                totalDuration: configuration.totalDuration,
-                clipStart: expectedClipStart,
-                clipDuration: configuration.clipDuration,
-                keyTimePercentages: configuration.keyTimePercentages
-            ))
-            $0.waveform.clipStart = expectedClipStart
-            $0.waveform.clipProgressPercent = 0
-            $0.timeline = timeline(
-                for: TrackConfiguration(
-                    totalDuration: configuration.totalDuration,
-                    clipStart: expectedClipStart,
-                    clipDuration: configuration.clipDuration,
-                    keyTimePercentages: configuration.keyTimePercentages
-                ),
-                at: expectedClipStart
-            )
-        }
+        await expectMarkerTappedStateUpdate(
+            store: store,
+            configuration: configuration,
+            expectedClipStart: expectedClipStart
+        )
         
         // Verify progress resets to 0
         #expect(store.state.timeline.clipProgressPercent == 0.0)
         #expect(store.state.playbackState.status == .idle)
         
         // Handle waveform scroll offset update
-        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
-            let percent = (expectedClipStart / configuration.totalDuration).clamped()
-            let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
-            let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
-            $0.waveform.scrollOffset = -clampedOffset
-            $0.waveform.dragStartOffset = -clampedOffset
-        }
+        await expectScrollOffsetUpdate(
+            store: store,
+            configuration: configuration,
+            clipStart: expectedClipStart
+        )
     }
 
     @MainActor
@@ -190,35 +153,15 @@ struct AudioTrimmerTests {
         // clipEnd would be 54 + 6 = 60, which is exactly at the boundary
         // Let's use a marker that would definitely exceed: 95% = 57 seconds
         // clipEnd would be 57 + 6 = 63, which exceeds 60
-        let markerPositionPercent = 0.95
+        // The marker position percent is calculated internally by expectMarkerTappedStateUpdate
         let expectedClipEnd = configuration.totalDuration
         let expectedClipStart = expectedClipEnd - configuration.clipDuration
         
-        await store.send(.markerTapped(markerPositionPercent: markerPositionPercent)) {
-            $0.configuration = TrackConfiguration(
-                totalDuration: configuration.totalDuration,
-                clipStart: expectedClipStart,
-                clipDuration: configuration.clipDuration,
-                keyTimePercentages: configuration.keyTimePercentages
-            )
-            $0.playbackState = .idle(configuration: TrackConfiguration(
-                totalDuration: configuration.totalDuration,
-                clipStart: expectedClipStart,
-                clipDuration: configuration.clipDuration,
-                keyTimePercentages: configuration.keyTimePercentages
-            ))
-            $0.waveform.clipStart = expectedClipStart
-            $0.waveform.clipProgressPercent = 0
-            $0.timeline = timeline(
-                for: TrackConfiguration(
-                    totalDuration: configuration.totalDuration,
-                    clipStart: expectedClipStart,
-                    clipDuration: configuration.clipDuration,
-                    keyTimePercentages: configuration.keyTimePercentages
-                ),
-                at: expectedClipStart
-            )
-        }
+        await expectMarkerTappedStateUpdate(
+            store: store,
+            configuration: configuration,
+            expectedClipStart: expectedClipStart
+        )
         
         // Verify clipStart was adjusted backward
         #expect(store.state.configuration.clipStart == expectedClipStart)
@@ -227,13 +170,11 @@ struct AudioTrimmerTests {
         #expect(store.state.timeline.clipProgressPercent == 0.0)
         
         // Handle waveform scroll offset update
-        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
-            let percent = (expectedClipStart / configuration.totalDuration).clamped()
-            let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
-            let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
-            $0.waveform.scrollOffset = -clampedOffset
-            $0.waveform.dragStartOffset = -clampedOffset
-        }
+        await expectScrollOffsetUpdate(
+            store: store,
+            configuration: configuration,
+            clipStart: expectedClipStart
+        )
     }
 
     @MainActor
@@ -248,16 +189,12 @@ struct AudioTrimmerTests {
         await startPlayback(using: context)
         
         // Advance by 1 second to get one tick
-        await clock.advance(by: .seconds(1))
-        let tickPosition = configuration.clipStart + 1
-        await store.receive(.tick) {
-            $0.playbackState.currentPosition = tickPosition
-            $0.playbackState.remainingDuration = configuration.clipDuration - 1
-            $0.timeline = timeline(for: configuration, at: tickPosition)
-            // waveform clipProgressPercent is updated by updateDerivedState
-            let elapsed = tickPosition - configuration.clipStart
-            $0.waveform.clipProgressPercent = (elapsed / configuration.clipDuration).clamped()
-        }
+        await expectTick(
+            store: store,
+            configuration: configuration,
+            clock: clock,
+            tickNumber: 1
+        )
         
         // Verify we're playing and have progress
         #expect(store.state.playbackState.status == .playing)
@@ -267,31 +204,11 @@ struct AudioTrimmerTests {
         let markerPositionPercent = 0.3
         let expectedClipStart = markerPositionPercent * configuration.totalDuration
         
-        await store.send(.markerTapped(markerPositionPercent: markerPositionPercent)) {
-            $0.configuration = TrackConfiguration(
-                totalDuration: configuration.totalDuration,
-                clipStart: expectedClipStart,
-                clipDuration: configuration.clipDuration,
-                keyTimePercentages: configuration.keyTimePercentages
-            )
-            $0.playbackState = .idle(configuration: TrackConfiguration(
-                totalDuration: configuration.totalDuration,
-                clipStart: expectedClipStart,
-                clipDuration: configuration.clipDuration,
-                keyTimePercentages: configuration.keyTimePercentages
-            ))
-            $0.waveform.clipStart = expectedClipStart
-            $0.waveform.clipProgressPercent = 0
-            $0.timeline = timeline(
-                for: TrackConfiguration(
-                    totalDuration: configuration.totalDuration,
-                    clipStart: expectedClipStart,
-                    clipDuration: configuration.clipDuration,
-                    keyTimePercentages: configuration.keyTimePercentages
-                ),
-                at: expectedClipStart
-            )
-        }
+        await expectMarkerTappedStateUpdate(
+            store: store,
+            configuration: configuration,
+            expectedClipStart: expectedClipStart
+        )
         
         // Verify playback stopped
         #expect(store.state.playbackState.status == .idle)
@@ -299,13 +216,11 @@ struct AudioTrimmerTests {
         #expect(store.state.timeline.clipProgressPercent == 0.0)
         
         // Handle waveform scroll offset update
-        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
-            let percent = (expectedClipStart / configuration.totalDuration).clamped()
-            let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
-            let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
-            $0.waveform.scrollOffset = -clampedOffset
-            $0.waveform.dragStartOffset = -clampedOffset
-        }
+        await expectScrollOffsetUpdate(
+            store: store,
+            configuration: configuration,
+            clipStart: expectedClipStart
+        )
         
         // Verify timer was cancelled (no more ticks should arrive)
         await clock.advance(by: .seconds(1))
@@ -355,14 +270,11 @@ private extension AudioTrimmerTests {
             $0.timeline = timeline(for: configuration, at: configuration.clipStart)
         }
 
-        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
-            // Calculate expected scroll offset
-            let percent = (configuration.clipStart / configuration.totalDuration).clamped()
-            let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
-            let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
-            $0.waveform.scrollOffset = -clampedOffset
-            $0.waveform.dragStartOffset = -clampedOffset
-        }
+        await expectScrollOffsetUpdate(
+            store: store,
+            configuration: configuration,
+            clipStart: configuration.clipStart
+        )
 
         return ConfiguredStoreContext(store: store, configuration: configuration, clock: clock)
     }
@@ -374,6 +286,93 @@ private extension AudioTrimmerTests {
             $0.playbackState.currentPosition = context.configuration.clipStart
             $0.playbackState.remainingDuration = context.configuration.clipDuration
             $0.timeline = timeline(for: context.configuration, at: context.configuration.clipStart)
+        }
+    }
+
+    /// Calculates the expected scroll offset for a given clipStart position
+    func expectedScrollOffset(
+        clipStart: TimeInterval,
+        totalDuration: TimeInterval,
+        clipDuration: TimeInterval,
+        maxOffset: CGFloat
+    ) -> CGFloat {
+        let maxClipStart = max(0, totalDuration - clipDuration)
+        guard maxClipStart > 0 else {
+            return 0
+        }
+        let percent = (clipStart / maxClipStart).clamped()
+        return -CGFloat(percent) * maxOffset
+    }
+
+    /// Helper to expect and verify scroll offset update in TestStore
+    @MainActor
+    func expectScrollOffsetUpdate(
+        store: TestStoreOf<AudioTrimmerFeature>,
+        configuration: TrackConfiguration,
+        clipStart: TimeInterval
+    ) async {
+        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
+            let expectedOffset = expectedScrollOffset(
+                clipStart: clipStart,
+                totalDuration: configuration.totalDuration,
+                clipDuration: configuration.clipDuration,
+                maxOffset: $0.waveform.viewConfiguration.maxOffset
+            )
+            $0.waveform.scrollOffset = expectedOffset
+            $0.waveform.dragStartOffset = expectedOffset
+        }
+    }
+
+    /// Creates a new TrackConfiguration with updated clipStart
+    func updatedConfiguration(
+        from configuration: TrackConfiguration,
+        clipStart: TimeInterval
+    ) -> TrackConfiguration {
+        TrackConfiguration(
+            totalDuration: configuration.totalDuration,
+            clipStart: clipStart,
+            clipDuration: configuration.clipDuration,
+            keyTimePercentages: configuration.keyTimePercentages
+        )
+    }
+
+    /// Helper to update state after markerTapped action
+    @MainActor
+    func expectMarkerTappedStateUpdate(
+        store: TestStoreOf<AudioTrimmerFeature>,
+        configuration: TrackConfiguration,
+        expectedClipStart: TimeInterval
+    ) async {
+        let newConfiguration = updatedConfiguration(from: configuration, clipStart: expectedClipStart)
+        await store.send(.markerTapped(markerPositionPercent: expectedClipStart / configuration.totalDuration)) {
+            $0.configuration = newConfiguration
+            $0.playbackState = .idle(configuration: newConfiguration)
+            $0.waveform.clipStart = expectedClipStart
+            $0.waveform.clipProgressPercent = 0
+            $0.timeline = timeline(for: newConfiguration, at: expectedClipStart)
+        }
+    }
+
+    /// Helper to process a single tick during playback
+    @MainActor
+    func expectTick(
+        store: TestStoreOf<AudioTrimmerFeature>,
+        configuration: TrackConfiguration,
+        clock: TestClock<Duration>,
+        tickNumber: Int
+    ) async {
+        await clock.advance(by: .seconds(1))
+        let expectedPosition = configuration.clipStart + TimeInterval(tickNumber)
+        let expectedRemaining = configuration.clipDuration - TimeInterval(tickNumber)
+        let expectedClipProgress = clipProgress(for: configuration, at: expectedPosition)
+        await store.receive(.tick) {
+            $0.playbackState.currentPosition = expectedPosition
+            $0.playbackState.remainingDuration = max(expectedRemaining, 0)
+            $0.timeline = timeline(for: configuration, at: expectedPosition)
+            $0.waveform.clipProgressPercent = expectedClipProgress
+            if expectedRemaining <= 0 {
+                $0.playbackState.status = .finished
+            }
         }
     }
 

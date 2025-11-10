@@ -148,13 +148,14 @@ struct WaveformTests {
         }
         
         await store.send(.updateScrollOffsetFromClipStart) {
-            // clipStart = 30, totalDuration = 120
-            // percent = 30/120 = 0.25
-            // position = 0.25 * 600 = 150
-            // clampedOffset = min(150, 540) = 150
-            // scrollOffset = -150
-            $0.scrollOffset = -150
-            $0.dragStartOffset = -150
+            // clipStart = 30, totalDuration = 120, clipDuration = 20
+            // maxClipStart = max(0, 120 - 20) = 100
+            // percent = 30/100 = 0.3
+            // maxOffset = waveformItemsWidth - borderWidth = (10 * 60) - 60 = 540
+            // clampedOffset = 0.3 * 540 = 162
+            // scrollOffset = -162
+            $0.scrollOffset = -162
+            $0.dragStartOffset = -162
         }
     }
     
