@@ -55,34 +55,34 @@ Audio Trimmer/
 
 ```mermaid
 graph TB
-    subgraph "App Entry Point"
+    subgraph Entry["App Entry Point"]
         RootView[RootView]
     end
     
-    subgraph "Features Layer"
-        AudioTrimmerFeature[AudioTrimmerFeature<br/>@Reducer]
-        WaveformFeature[WaveformFeature<br/>@Reducer]
+    subgraph Features["Features Layer"]
+        AudioTrimmerFeature["AudioTrimmerFeature @Reducer"]
+        WaveformFeature["WaveformFeature @Reducer"]
     end
     
-    subgraph "Views Layer"
+    subgraph Views["Views Layer"]
         AudioTrimmerView[AudioTrimmerView]
         WaveformView[WaveformView]
         TimelineTrackView[TimelineTrackView]
         DetailRow[DetailRow]
     end
     
-    subgraph "Models Layer"
+    subgraph Models["Models Layer"]
         TrackConfiguration[TrackConfiguration]
     end
     
-    subgraph "Extensions Layer"
-        DoubleExt[Double+Extensions]
-        TimeIntervalExt[TimeInterval+Extensions]
+    subgraph Extensions["Extensions Layer"]
+        DoubleExt["Double Extensions"]
+        TimeIntervalExt["TimeInterval Extensions"]
     end
     
-    subgraph "Dependencies"
-        ConfigLoader[ConfigurationLoader<br/>@DependencyKey]
-        Clock[continuousClock<br/>@Dependency]
+    subgraph Dependencies["Dependencies"]
+        ConfigLoader["ConfigurationLoader @DependencyKey"]
+        Clock["continuousClock @Dependency"]
     end
     
     RootView --> AudioTrimmerView
@@ -99,43 +99,34 @@ graph TB
     
     TrackConfiguration --> DoubleExt
     TrackConfiguration --> TimeIntervalExt
-    
-    style RootView fill:#e1f5ff
-    style AudioTrimmerFeature fill:#fff4e1
-    style WaveformFeature fill:#fff4e1
-    style AudioTrimmerView fill:#e8f5e9
-    style WaveformView fill:#e8f5e9
-    style TrackConfiguration fill:#f3e5f5
-    style ConfigLoader fill:#fff9c4
-    style Clock fill:#fff9c4
 ```
 
 ### Dependency Diagram
 
 ```mermaid
 graph LR
-    subgraph "View Layer"
+    subgraph ViewLayer["View Layer"]
         AV[AudioTrimmerView]
         WV[WaveformView]
         TTV[TimelineTrackView]
         DR[DetailRow]
     end
     
-    subgraph "Feature Layer"
+    subgraph FeatureLayer["Feature Layer"]
         ATF[AudioTrimmerFeature]
         WF[WaveformFeature]
     end
     
-    subgraph "Model Layer"
+    subgraph ModelLayer["Model Layer"]
         TC[TrackConfiguration]
     end
     
-    subgraph "Utility Layer"
-        DE[Double+Extensions]
-        TIE[TimeInterval+Extensions]
+    subgraph UtilityLayer["Utility Layer"]
+        DE["Double Extensions"]
+        TIE["TimeInterval Extensions"]
     end
     
-    subgraph "Dependency Layer"
+    subgraph DependencyLayer["Dependency Layer"]
         CL[ConfigurationLoader]
         CC[continuousClock]
     end
@@ -152,25 +143,11 @@ graph LR
     
     TC -.->|uses| DE
     TC -.->|uses| TIE
-    
-    style AV fill:#c8e6c9
-    style WV fill:#c8e6c9
-    style ATF fill:#ffccbc
-    style WF fill:#ffccbc
-    style TC fill:#e1bee7
-    style CL fill:#fff9c4
-    style CC fill:#fff9c4
 ```
 
 **Legend:**
 - **Solid arrows (→)**: Direct composition/ownership
 - **Dashed arrows (-.->)**: Dependency/usage relationship
-- **Color coding:**
-  - 🔵 Blue: Entry point
-  - 🟠 Orange: Feature reducers
-  - 🟢 Green: SwiftUI views
-  - 🟣 Purple: Domain models
-  - 🟡 Yellow: Dependencies
 
 ### AudioTrimmerFeature
 `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`
