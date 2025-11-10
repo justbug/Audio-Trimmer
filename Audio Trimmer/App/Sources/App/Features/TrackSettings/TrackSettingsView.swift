@@ -15,7 +15,7 @@ struct TrackSettingsView: View {
                     .font(.title)
                     .bold()
                 
-                Group {
+                VStack(alignment: .leading, spacing: 16) {
                     LabeledField(
                         label: "Track length (seconds)",
                         text: $store.totalDurationText
@@ -26,6 +26,7 @@ struct TrackSettingsView: View {
                     
                     LabeledField(
                         label: "Key times (%) · comma or space separated",
+                        keyboardType: .default,
                         text: $store.keyTimesText
                     )
                     if let error = store.keyTimesError {
@@ -65,20 +66,47 @@ struct TrackSettingsView: View {
     }
 }
 
+private enum FieldKeyboardType {
+    case numberPad
+    case `default`
+}
+
 private struct LabeledField: View {
     let label: String
+    let keyboardType: FieldKeyboardType
     @Binding var text: String
+    
+    init(label: String, keyboardType: FieldKeyboardType = .numberPad, text: Binding<String>) {
+        self.label = label
+        self.keyboardType = keyboardType
+        self._text = text
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
                 .font(.headline)
-            TextField("", text: $text)
-                .textFieldStyle(.roundedBorder)
-                #if os(iOS)
-                .keyboardType(.numberPad)
-                #endif
+            textField
         }
+    }
+    
+    @ViewBuilder
+    private var textField: some View {
+        #if os(iOS)
+        switch keyboardType {
+        case .numberPad:
+            TextField("", text: $text)
+                .keyboardType(.numberPad)
+                .textFieldStyle(.roundedBorder)
+        case .default:
+            TextField("", text: $text)
+                .keyboardType(.default)
+                .textFieldStyle(.roundedBorder)
+        }
+        #else
+        TextField("", text: $text)
+            .textFieldStyle(.roundedBorder)
+        #endif
     }
 }
 

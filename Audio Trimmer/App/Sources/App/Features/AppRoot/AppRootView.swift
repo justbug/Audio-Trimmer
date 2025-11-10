@@ -19,16 +19,11 @@ public struct AppRootView: View {
             TrackSettingsView(
                 store: store.scope(state: \.trackSettings, action: \.trackSettings)
             )
-        } destination: { state in
-            switch state {
-            case .audioTrimmer:
-                CaseLet(
-                    /AppRootFeature.Path.State.audioTrimmer,
-                    action: AppRootFeature.Path.Action.audioTrimmer,
-                    then: { store in
-                        AudioTrimmerView(store: store)
-                    }
-                )
+        } destination: { store in
+            IfLetStore(
+                store.scope(state: \.audioTrimmer, action: \.audioTrimmer)
+            ) { store in
+                AudioTrimmerView(store: store)
             }
         }
     }
