@@ -196,7 +196,7 @@ struct AudioTrimmerFeature {
                     clipDuration: configuration.clipDuration
                 )
                 updateDerivedState(&state)
-                return .none
+                return .send(.waveform(.updateScrollOffsetFromClipStart))
             case .loadConfigurationFailed(let error):
                 print("Error loading configuration: \(error)")
                 return .none
