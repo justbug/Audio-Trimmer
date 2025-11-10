@@ -12,14 +12,14 @@ Parallelization opportunities are marked with [P] where tasks touch independent 
 
 ## Phase 1: Setup
 
-- [ ] T001 Create feature directory for TrackSettings under `Audio Trimmer/App/Sources/App/Features/TrackSettings/`
-- [ ] T002 Add empty tests file `Audio Trimmer/App/Tests/AppTests/TrackSettingsTests.swift`
+- [X] T001 Create feature directory for TrackSettings under `Audio Trimmer/App/Sources/App/Features/TrackSettings/`
+- [X] T002 Add empty tests file `Audio Trimmer/App/Tests/AppTests/TrackSettingsTests.swift`
 
 ## Phase 2: Foundational
 
-- [ ] T003 Define `TrackSettingsFeature` skeleton with `@Reducer` in `Audio Trimmer/App/Sources/App/Features/TrackSettings/TrackSettingsFeature.swift`
-- [ ] T004 Define `TrackSettingsView` skeleton bound to `StoreOf<TrackSettingsFeature>` in `Audio Trimmer/App/Sources/App/Features/TrackSettings/TrackSettingsView.swift`
-- [ ] T005 Update `Audio Trimmer/App/Sources/App/RootView.swift` to present `TrackSettingsView` as entry screen
+- [X] T003 Define `TrackSettingsFeature` skeleton with `@Reducer` in `Audio Trimmer/App/Sources/App/Features/TrackSettings/TrackSettingsFeature.swift`
+- [X] T004 Define `TrackSettingsView` skeleton bound to `StoreOf<TrackSettingsFeature>` in `Audio Trimmer/App/Sources/App/Features/TrackSettings/TrackSettingsView.swift`
+- [X] T005 Update `Audio Trimmer/App/Sources/App/RootView.swift` to present `TrackSettingsView` as entry screen
 
 ---
 
@@ -27,14 +27,14 @@ Parallelization opportunities are marked with [P] where tasks touch independent 
 Goal: Users can input track length, clip start, clip percent, key times and, on Confirm, navigate to `AudioTrimmerView` with a correctly formed `TrackConfiguration`.
 Independent test criteria: Given valid inputs, Confirm constructs `TrackConfiguration { totalDuration, clipStart, clipDuration, keyTimePercentages }` and triggers navigation to trimming.
 
-- [ ] T006 [US1] Model `TrackSettingsFeature.State` with raw `String` form fields and `destination` in `TrackSettingsFeature.swift`
-- [ ] T007 [US1] Implement `.confirmTapped` action and validation entrypoint in `TrackSettingsFeature.swift`
-- [ ] T008 [US1] Compute `clipDuration = totalDuration * (clipPercent/100)` (no internal rounding) in `TrackSettingsFeature.swift`
-- [ ] T009 [US1] Build `TrackConfiguration` and set navigation `destination` to trimming in `TrackSettingsFeature.swift`
-- [ ] T010 [US1] Wire `Confirm` button in `TrackSettingsView` to send `.confirmTapped`
-- [ ] T011 [US1] Render basic form fields with labels and helper text in `TrackSettingsView.swift`
-- [ ] T012 [P] [US1] Add navigation handoff to `AudioTrimmerView` using `NavigationStackStore` or equivalent state-driven navigation in `RootView.swift`
-- [ ] T013 [US1] Add `TrackSettingsTests` case: valid inputs produce expected `TrackConfiguration` and navigate in `Audio Trimmer/App/Tests/AppTests/TrackSettingsTests.swift`
+- [X] T006 [US1] Model `TrackSettingsFeature.State` with raw `String` form fields and `destination` in `TrackSettingsFeature.swift`
+- [X] T007 [US1] Implement `.confirmTapped` action and validation entrypoint in `TrackSettingsFeature.swift`
+- [X] T008 [US1] Compute `clipDuration = totalDuration * (clipPercent/100)` (no internal rounding) in `TrackSettingsFeature.swift`
+- [X] T009 [US1] Build `TrackConfiguration` and set navigation `destination` to trimming in `TrackSettingsFeature.swift`
+- [X] T010 [US1] Wire `Confirm` button in `TrackSettingsView` to send `.confirmTapped`
+- [X] T011 [US1] Render basic form fields with labels and helper text in `TrackSettingsView.swift`
+- [X] T012 [P] [US1] Add navigation handoff to `AudioTrimmerView` using `NavigationStackStore` or equivalent state-driven navigation in `RootView.swift`
+- [X] T013 [US1] Add `TrackSettingsTests` case: valid inputs produce expected `TrackConfiguration` and navigate in `Audio Trimmer/App/Tests/AppTests/TrackSettingsTests.swift`
 
 ---
 
