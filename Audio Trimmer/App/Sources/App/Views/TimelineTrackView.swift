@@ -5,6 +5,7 @@ struct TimelineTrackView: View {
     let markers: [Double]
     let progress: Double
     let capsuleHeight: CGFloat = 12
+    let onMarkerTapped: ((Double) -> Void)?
     
     var body: some View {
         GeometryReader { proxy in
@@ -35,6 +36,9 @@ struct TimelineTrackView: View {
                         .fill(Color.accentColor)
                         .frame(width: 20, height: 20)
                         .offset(x: width * marker, y: 0)
+                        .onTapGesture {
+                            onMarkerTapped?(marker)
+                        }
                 }
             }
         }
@@ -50,7 +54,8 @@ struct TimelineTrackView: View {
             TimelineTrackView(
                 clipRange: 0.04...0.12,
                 markers: [0.25, 0.75],
-                progress: 0
+                progress: 0,
+                onMarkerTapped: nil
             )
             .frame(height: 44)
         }
@@ -62,7 +67,8 @@ struct TimelineTrackView: View {
             TimelineTrackView(
                 clipRange: 0.04...0.12,
                 markers: [0.25, 0.75],
-                progress: 0.5
+                progress: 0.5,
+                onMarkerTapped: nil
             )
             .frame(height: 44)
         }
@@ -74,7 +80,8 @@ struct TimelineTrackView: View {
             TimelineTrackView(
                 clipRange: 0.04...0.12,
                 markers: [0.25, 0.75],
-                progress: 1.0
+                progress: 1.0,
+                onMarkerTapped: nil
             )
             .frame(height: 44)
         }
@@ -86,7 +93,8 @@ struct TimelineTrackView: View {
             TimelineTrackView(
                 clipRange: 0.2...0.8,
                 markers: [0.3, 0.5, 0.7],
-                progress: 0.3
+                progress: 0.3,
+                onMarkerTapped: nil
             )
             .frame(height: 44)
         }
@@ -98,7 +106,8 @@ struct TimelineTrackView: View {
             TimelineTrackView(
                 clipRange: 0.1...0.4,
                 markers: [],
-                progress: 0.6
+                progress: 0.6,
+                onMarkerTapped: nil
             )
             .frame(height: 44)
         }

@@ -63,6 +63,9 @@ private extension AudioTrimmerView {
                 clipRange: store.timeline.clipRangePercent,
                 markers: store.timeline.markerPositionsPercent,
                 progress: store.timeline.clipProgressPercent,
+                onMarkerTapped: { markerPositionPercent in
+                    store.send(.markerTapped(markerPositionPercent: markerPositionPercent))
+                }
             )
             .frame(height: 44)
         }

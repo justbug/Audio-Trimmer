@@ -43,6 +43,7 @@ struct AudioTrimmerFeature {
         case configurationLoaded(TrackConfiguration)
         case loadConfigurationFailed(String)
         case waveform(WaveformFeature.Action)
+        case markerTapped(markerPositionPercent: Double)
     }
 
     struct PlaybackState: Equatable {
@@ -201,6 +202,50 @@ struct AudioTrimmerFeature {
             case .loadConfigurationFailed(let error):
                 print("Error loading configuration: \(error)")
                 return .none
+            case .markerTapped(let markerPositionPercent):
+                guard state.configuration.totalDuration > 0 else {
+                    return .none
+                }
+                
+                // Convert marker position percent to seconds
+                let markerPositionSeconds = markerPositionPercent * state.configuration.totalDuration
+                
+                // Calculate new clipStart (marker position)
+                var newClipStart = markerPositionSeconds
+                
+                // Calculate new clipEnd (clipStart + clipDuration)
+                let newClipEnd = newClipStart + state.configuration.clipDuration
+                
+                // If clipEnd exceeds totalDuration, adjust clipStart backward to keep clipDuration
+                if newClipEnd > state.configuration.totalDuration {
+                    newClipStart = state.configuration.totalDuration - state.configuration.clipDuration
+                    // Ensure clipStart doesn't go negative
+                    newClipStart = max(0, newClipStart)
+                }
+                
+                // Update configuration with new clipStart
+                state.configuration = TrackConfiguration(
+                    totalDuration: state.configuration.totalDuration,
+                    clipStart: newClipStart,
+                    clipDuration: state.configuration.clipDuration,
+                    keyTimePercentages: state.configuration.keyTimePercentages
+                )
+                
+                // Reset playback state (progress to 0, stop playback if playing)
+                state.playbackState = .idle(configuration: state.configuration)
+                
+                // Update waveform state with new clipStart
+                state.waveform.clipStart = newClipStart
+                state.waveform.clipProgressPercent = 0
+                
+                // Update derived timeline state
+                updateDerivedState(&state)
+                
+                // Cancel playback timer if playing and update waveform scroll offset
+                return .merge(
+                    .cancel(id: TimerID.playback),
+                    .send(.waveform(.updateScrollOffsetFromClipStart))
+                )
             }
         }
     }
