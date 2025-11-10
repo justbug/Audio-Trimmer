@@ -42,6 +42,8 @@ struct AudioTrimmerFeature {
         case tick
         case waveform(WaveformFeature.Action)
         case markerTapped(markerPositionPercent: Double)
+        case waveformDragChanged(scrollOffset: CGFloat)
+        case waveformDragEnded
     }
 
     struct PlaybackState: Equatable {
@@ -49,6 +51,7 @@ struct AudioTrimmerFeature {
             case idle
             case playing
             case paused
+            case pausedByDrag
             case finished
         }
 
@@ -64,6 +67,16 @@ struct AudioTrimmerFeature {
 
         static func playing(configuration: TrackConfiguration) -> Self {
             .init(status: .playing, currentPosition: configuration.clipStart, remainingDuration: configuration.clipDuration)
+        }
+        
+        /// Returns true if the playback is currently playing
+        var isPlaying: Bool {
+            status == .playing
+        }
+        
+        /// Returns true if the playback was paused due to drag
+        var wasPausedByDrag: Bool {
+            status == .pausedByDrag
         }
     }
 
@@ -134,10 +147,19 @@ struct AudioTrimmerFeature {
                 )
                 updateDerivedState(&state)
                 return .send(.waveform(.updateScrollOffsetFromClipStart))
-            case .waveform:
-                return .none
+            case .waveform(let waveformAction):
+                switch waveformAction {
+                case .dragChanged:
+                    // Forward to waveformDragChanged with current scrollOffset
+                    // Note: scrollOffset is already updated by WaveformFeature reducer
+                    return .send(.waveformDragChanged(scrollOffset: state.waveform.scrollOffset))
+                case .dragEnded:
+                    return .send(.waveformDragEnded)
+                default:
+                    return .none
+                }
             case .playTapped:
-                guard state.playbackState.status != PlaybackState.Status.playing else {
+                guard !state.playbackState.isPlaying else {
                     return .none
                 }
                 if state.playbackState.status == PlaybackState.Status.finished {
@@ -154,7 +176,7 @@ struct AudioTrimmerFeature {
                 }
                 .cancellable(id: TimerID.playback, cancelInFlight: true)
             case .tick:
-                guard state.playbackState.status == PlaybackState.Status.playing else {
+                guard state.playbackState.isPlaying else {
                     return .none
                 }
 
@@ -186,6 +208,62 @@ struct AudioTrimmerFeature {
                 updateDerivedState(&state)
                 return .cancel(id: TimerID.playback)
 
+            case .waveformDragChanged(let scrollOffset):
+                // Convert scrollOffset to clipStart
+                let newClipStart = clipStartFromScrollOffset(
+                    scrollOffset: scrollOffset,
+                    waveformState: state.waveform,
+                    totalDuration: state.configuration.totalDuration,
+                    clipDuration: state.configuration.clipDuration
+                )
+                
+                // If playing, pause playback and mark it as paused by drag
+                let wasPlaying = state.playbackState.isPlaying
+                if wasPlaying {
+                    state.playbackState.status = .pausedByDrag
+                }
+                
+                // Update configuration with new clipStart
+                state.configuration = TrackConfiguration(
+                    totalDuration: state.configuration.totalDuration,
+                    clipStart: newClipStart,
+                    clipDuration: state.configuration.clipDuration,
+                    keyTimePercentages: state.configuration.keyTimePercentages
+                )
+                
+                // Update playback state currentPosition to new clipStart
+                // This ensures the displayed position updates during drag
+                state.playbackState.currentPosition = newClipStart
+                state.playbackState.remainingDuration = state.configuration.clipDuration
+                
+                // Update waveform state with new clipStart
+                state.waveform.clipStart = newClipStart
+                
+                // Update derived timeline state
+                updateDerivedState(&state)
+                
+                // Cancel playback timer if it was playing
+                if wasPlaying {
+                    return .cancel(id: TimerID.playback)
+                }
+                return .none
+                
+            case .waveformDragEnded:
+                // If playback was paused due to drag, resume it
+                if state.playbackState.wasPausedByDrag {
+                    // Reset playback to start from new clipStart
+                    state.playbackState = .playing(configuration: state.configuration)
+                    updateDerivedState(&state)
+                    // Start playback timer
+                    return .run { send in
+                        for await _ in clock.timer(interval: .seconds(1)) {
+                            await send(.tick)
+                        }
+                    }
+                    .cancellable(id: TimerID.playback, cancelInFlight: true)
+                }
+                return .none
+                
             case .markerTapped(let markerPositionPercent):
                 guard state.configuration.totalDuration > 0 else {
                     return .none
@@ -232,6 +310,40 @@ struct AudioTrimmerFeature {
                 )
             }
         }
+    }
+
+    /// Converts scrollOffset to clipStart time in seconds.
+    /// Formula: clampedOffset = -scrollOffset → percent = clampedOffset / maxOffset → clipStart = percent * (totalDuration - clipDuration)
+    /// When scrollOffset = 0 (rightmost), clipStart = totalDuration - clipDuration (end of song)
+    /// When scrollOffset = -maxOffset (leftmost), clipStart = 0 (start of song)
+    private func clipStartFromScrollOffset(
+        scrollOffset: CGFloat,
+        waveformState: WaveformFeature.State,
+        totalDuration: TimeInterval,
+        clipDuration: TimeInterval
+    ) -> TimeInterval {
+        let maxOffset = waveformState.viewConfiguration.maxOffset
+        
+        guard maxOffset > 0,
+              totalDuration > 0 else {
+            return 0
+        }
+        
+        // Convert negative scrollOffset to positive clampedOffset
+        // scrollOffset range: [-maxOffset, 0]
+        // clampedOffset range: [0, maxOffset]
+        let clampedOffset = -scrollOffset
+        
+        // Calculate percent position (0.0 to 1.0) based on maxOffset
+        // This maps the scroll range to the full song duration
+        let percent = Double(clampedOffset / maxOffset).clamped()
+        
+        // Calculate clipStart in seconds
+        // Map percent to the valid clipStart range: [0, totalDuration - clipDuration]
+        let maxClipStart = max(0, totalDuration - clipDuration)
+        let clipStart = percent * maxClipStart
+        
+        return clipStart
     }
 
     /// Rebuilds the timeline snapshot whenever configuration or playback changes.

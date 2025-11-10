@@ -91,23 +91,29 @@ struct WaveformFeature {
                     return .none
                 }
                 
-                guard state.viewConfiguration.waveformItemsWidth > 0,
-                      state.viewConfiguration.borderWidth > 0,
+                guard state.viewConfiguration.maxOffset > 0,
                       state.totalDuration > 0 else {
                     state.scrollOffset = 0
                     state.dragStartOffset = 0
                     return .none
                 }
                 
-                guard state.viewConfiguration.maxOffset > 0 else {
+                // Calculate the valid clipStart range
+                let maxClipStart = max(0, state.totalDuration - state.clipDuration)
+                
+                // If maxClipStart is 0, set scrollOffset to 0 (no scrolling needed)
+                guard maxClipStart > 0 else {
                     state.scrollOffset = 0
                     state.dragStartOffset = 0
                     return .none
                 }
                 
-                let percent = (state.clipStart / state.totalDuration).clamped()
-                let position = CGFloat(percent) * state.viewConfiguration.waveformItemsWidth
-                let clampedOffset = max(0, min(position, state.viewConfiguration.maxOffset))
+                // Calculate percent based on clipStart position in the valid range
+                // clipStart range: [0, maxClipStart] → percent range: [0, 1]
+                let percent = (state.clipStart / maxClipStart).clamped()
+                
+                // Map percent to scrollOffset range: [0, maxOffset] → [-maxOffset, 0]
+                let clampedOffset = CGFloat(percent) * state.viewConfiguration.maxOffset
                 state.scrollOffset = -clampedOffset
                 state.dragStartOffset = state.scrollOffset
                 return .none

@@ -14,7 +14,11 @@ struct TimelineTrackView: View {
             let clipStart = width * clipRange.lowerBound
             let clipEnd = width * clipRange.upperBound
             let clipWidth = max(clipEnd - clipStart, 0) * clipWidthScale
-            let progressX = clipWidth * progress
+            // Limit clipWidth to not exceed view bounds
+            let constrainedClipWidth = min(clipWidth, max(0, width - clipStart))
+            let progressX = constrainedClipWidth * progress
+            // Limit progressX to not exceed view bounds
+            let constrainedProgressX = min(progressX, max(0, width - clipStart))
             
             ZStack(alignment: .leading) {
                 Capsule()
@@ -23,14 +27,14 @@ struct TimelineTrackView: View {
                 
                 Capsule()
                     .fill(Color.accentColor.opacity(0.2))
-                    .frame(width: clipWidth, height: capsuleHeight)
+                    .frame(width: constrainedClipWidth, height: capsuleHeight)
                     .offset(x: clipStart)
                 
                 Capsule()
                     .fill(Color.yellow)
-                    .frame(width: progressX, height: capsuleHeight)
+                    .frame(width: constrainedProgressX, height: capsuleHeight)
                     .offset(x: clipStart, y: 0)
-                    .animation(.easeInOut(duration: 0.2), value: progressX)
+                    .animation(.easeInOut(duration: 0.2), value: constrainedProgressX)
                 
                 ForEach(Array(markers.enumerated()), id: \.offset) { _, marker in
                     Circle()
@@ -42,6 +46,7 @@ struct TimelineTrackView: View {
                         }
                 }
             }
+            .clipped()
         }
     }
 }
