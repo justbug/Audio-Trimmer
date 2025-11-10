@@ -11,10 +11,7 @@ struct WaveformFeature {
         var scrollOffset: CGFloat = 0
         var dragStartOffset: CGFloat = 0
         var isDragging: Bool = false
-        var text: String {
-            "Scroll Offset: \(scrollOffset)\nDrag Start Offset: \(dragStartOffset)\nIs Dragging: \(isDragging)"
-        }
-                
+        
         init(
             totalDuration: TimeInterval = 0,
             clipStart: TimeInterval = 0,

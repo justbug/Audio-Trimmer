@@ -5,7 +5,6 @@ struct WaveformView: View {
     @Bindable var store: StoreOf<WaveformFeature>
     private let itemSize: CGFloat = 60
     private let itemsCount: Int = 10
-    private let itemsPadding: CGFloat = 16
     private var borderWidth: CGFloat {
         itemSize
     }
@@ -19,34 +18,27 @@ struct WaveformView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if !store.text.isEmpty {
-                Text(store.text)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                let width = geometry.size.width
+                waveformScrollView(width)
+                
+                TimelineBorderView()
+                    .frame(width: itemSize, height: itemSize)
+                    .offset(x: width / 2 - borderWidth / 2, y: 0)
             }
-            
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    waveformScrollView()
-                    
-                    TimelineBorderView()
-                        .frame(width: itemSize, height: itemSize)
-                        .offset(x: itemsPadding, y: 0)
-                }
-            }
-            .frame(height: itemSize)
         }
+        .frame(height: itemSize)
     }
     
-    private func waveformScrollView() -> some View {
+    private func waveformScrollView(_ width: CGFloat) -> some View {
         return HStack(spacing: 0) {
             ForEach(0..<itemsCount, id: \.self) { index in
                 waveformImageView(itemSize: itemSize)
                     .id(index)
             }
         }
-        .padding(.horizontal, itemsPadding)
+        .padding(.horizontal, width / 2 - borderWidth / 2)
         .frame(height: itemSize)
         .offset(x: store.scrollOffset)
         .gesture(
@@ -85,83 +77,3 @@ struct WaveformView: View {
         }
     }
 }
-
-#Preview {
-    struct PreviewContainer: View {
-        @State private var scrollStore = Store(
-            initialState: WaveformFeature.State(
-                totalDuration: 60,
-                clipStart: 6,
-                clipDuration: 12
-            )
-        ) {
-            WaveformFeature()
-        }
-        
-        var body: some View {
-            VStack(spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Short clip (6s / 40)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    WaveformView(
-                        store: Store(
-                            initialState: WaveformFeature.State(
-                                totalDuration: 40,
-                                clipStart: 0,
-                                clipDuration: 6
-                            )
-                        ) {
-                            WaveformFeature()
-                        }
-                    )
-                }
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Clip at 6s")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    WaveformView(store: scrollStore)
-                }
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Medium clip (12s / 60s)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    WaveformView(
-                        store: Store(
-                            initialState: WaveformFeature.State(
-                                totalDuration: 60,
-                                clipStart: 0,
-                                clipDuration: 12
-                            )
-                        ) {
-                            WaveformFeature()
-                        }
-                    )
-                }
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Long clip (30s / 120s)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    WaveformView(
-                        store: Store(
-                            initialState: WaveformFeature.State(
-                                totalDuration: 120,
-                                clipStart: 0,
-                                clipDuration: 30
-                            )
-                        ) {
-                            WaveformFeature()
-                        }
-                    )
-                }
-            }
-            .padding()
-        }
-    }
-    
-    return PreviewContainer()
-}
-
