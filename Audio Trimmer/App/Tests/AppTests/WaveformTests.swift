@@ -12,7 +12,8 @@ struct WaveformTests {
         #expect(state.totalDuration == 0)
         #expect(state.clipStart == 0)
         #expect(state.clipDuration == 0)
-        #expect(state.scrollTargetIndex == nil)
+        #expect(state.scrollOffset == 0)
+        #expect(state.isDragging == false)
     }
     
     @MainActor
@@ -22,12 +23,12 @@ struct WaveformTests {
             totalDuration: 120,
             clipStart: 10,
             clipDuration: 30,
-            scrollTargetIndex: 5
+            scrollOffset: -50
         )
         #expect(state.totalDuration == 120)
         #expect(state.clipStart == 10)
         #expect(state.clipDuration == 30)
-        #expect(state.scrollTargetIndex == 5)
+        #expect(state.scrollOffset == -50)
     }
     
     @MainActor
@@ -37,217 +38,191 @@ struct WaveformTests {
             totalDuration: 60,
             clipStart: 0,
             clipDuration: 12,
-            scrollTargetIndex: 2
+            scrollOffset: -20
         )
         let state2 = WaveformFeature.State(
             totalDuration: 60,
             clipStart: 0,
             clipDuration: 12,
-            scrollTargetIndex: 2
+            scrollOffset: -20
         )
         let state3 = WaveformFeature.State(
             totalDuration: 60,
             clipStart: 0,
             clipDuration: 12,
-            scrollTargetIndex: 3
+            scrollOffset: -30
         )
         #expect(state1 == state2)
         #expect(state1 != state3)
     }
     
     @MainActor
-    @Test("imageCount returns minimum of 10 when totalDuration is less than 60")
-    func imageCountReturnsMinimumForShortDuration() {
-        let state1 = WaveformFeature.State(totalDuration: 0)
-        #expect(state1.imageCount == 10) // 60 / 6 = 10
-        
-        let state2 = WaveformFeature.State(totalDuration: 1)
-        #expect(state2.imageCount == 10)
-        
-        let state3 = WaveformFeature.State(totalDuration: 5)
-        #expect(state3.imageCount == 10)
-        
-        let state4 = WaveformFeature.State(totalDuration: 59)
-        #expect(state4.imageCount == 10)
+    @Test("viewConfiguration has correct default values")
+    func viewConfigurationHasCorrectDefaults() {
+        let state = WaveformFeature.State()
+        #expect(state.viewConfiguration.itemSize == 60)
+        #expect(state.viewConfiguration.itemsCount == 10)
+        #expect(state.viewConfiguration.borderWidth == 60)
+        #expect(state.viewConfiguration.waveformItemsWidth == 600)
+        #expect(state.viewConfiguration.maxOffset == 540)
     }
     
     @MainActor
-    @Test("imageCount returns 10 when totalDuration equals 60")
-    func imageCountReturns10For60Seconds() {
-        let state = WaveformFeature.State(totalDuration: 60)
-        #expect(state.imageCount == 10) // 60 / 6 = 10
-    }
-    
-    @MainActor
-    @Test("imageCount returns duration divided by 6 when totalDuration is greater than 60")
-    func imageCountReturnsDurationDividedBy6ForLongDuration() {
-        let state1 = WaveformFeature.State(totalDuration: 120)
-        #expect(state1.imageCount == 20) // 120 / 6 = 20
-        
-        let state2 = WaveformFeature.State(totalDuration: 300)
-        #expect(state2.imageCount == 50) // 300 / 6 = 50
-        
-        let state3 = WaveformFeature.State(totalDuration: 66)
-        #expect(state3.imageCount == 11) // 66 / 6 = 11
-    }
-    
-    @MainActor
-    @Test("scrollToIndex sets valid index within bounds")
-    func scrollToIndexSetsValidIndex() async {
-        let store = TestStore(initialState: WaveformFeature.State(totalDuration: 120)) {
-            WaveformFeature()
-        }
-        
-        // Test middle index
-        await store.send(.scrollToIndex(10)) {
-            $0.scrollTargetIndex = 10
-        }
-        
-        // Test first valid index
-        await store.send(.scrollToIndex(0)) {
-            $0.scrollTargetIndex = 0
-        }
-        
-        // Test last valid index (imageCount - 1 = 19)
-        await store.send(.scrollToIndex(19)) {
-            $0.scrollTargetIndex = 19
-        }
-    }
-    
-    @MainActor
-    @Test("scrollToIndex rejects negative index")
-    func scrollToIndexRejectsNegativeIndex() async {
+    @Test("dragStarted sets isDragging and saves dragStartOffset")
+    func dragStartedSetsDragging() async {
         let store = TestStore(initialState: WaveformFeature.State(
             totalDuration: 120,
-            scrollTargetIndex: 10
+            scrollOffset: -100
         )) {
             WaveformFeature()
         }
         
-        await store.send(.scrollToIndex(-1)) {
-            $0.scrollTargetIndex = nil
-        }
-        
-        // Set a valid index first, then test another invalid index
-        await store.send(.scrollToIndex(5)) {
-            $0.scrollTargetIndex = 5
-        }
-        
-        await store.send(.scrollToIndex(-10)) {
-            $0.scrollTargetIndex = nil
+        await store.send(.dragStarted) {
+            $0.isDragging = true
+            $0.dragStartOffset = -100
         }
     }
     
     @MainActor
-    @Test("scrollToIndex rejects index greater than or equal to imageCount")
-    func scrollToIndexRejectsOutOfBoundsIndex() async {
+    @Test("dragChanged updates scrollOffset within bounds")
+    func dragChangedUpdatesScrollOffset() async {
         let store = TestStore(initialState: WaveformFeature.State(
             totalDuration: 120,
-            scrollTargetIndex: 10
+            scrollOffset: -100,
+            dragStartOffset: -100,
+            isDragging: true
         )) {
             WaveformFeature()
         }
-        // imageCount = 120 / 6 = 20, so valid indices are 0-19
         
-        // Test index equal to imageCount
-        await store.send(.scrollToIndex(20)) {
-            $0.scrollTargetIndex = nil
+        // Test positive translation (right swipe)
+        await store.send(.dragChanged(translation: 50)) {
+            $0.scrollOffset = -50  // dragStartOffset(-100) + translation(50) = -50
         }
         
-        // Set a valid index first, then test another invalid index
-        await store.send(.scrollToIndex(5)) {
-            $0.scrollTargetIndex = 5
+        // Test negative translation (left swipe) - uses original dragStartOffset
+        await store.send(.dragChanged(translation: -30)) {
+            $0.scrollOffset = -130  // dragStartOffset(-100) + translation(-30) = -130
         }
         
-        // Test index greater than imageCount
-        await store.send(.scrollToIndex(25)) {
-            $0.scrollTargetIndex = nil
+        // Test clamping to maxOffset
+        await store.send(.dragChanged(translation: 600)) {
+            $0.scrollOffset = 0
+        }
+        
+        // Test clamping to minOffset
+        await store.send(.dragChanged(translation: -1000)) {
+            $0.scrollOffset = -540
         }
     }
     
     @MainActor
-    @Test("scrollToIndex accepts nil index")
-    func scrollToIndexAcceptsNil() async {
+    @Test("dragEnded clears isDragging and updates dragStartOffset")
+    func dragEndedClearsDragging() async {
         let store = TestStore(initialState: WaveformFeature.State(
             totalDuration: 120,
-            scrollTargetIndex: 10
+            scrollOffset: -150,
+            dragStartOffset: -100,
+            isDragging: true
         )) {
             WaveformFeature()
         }
         
-        await store.send(.scrollToIndex(nil)) {
-            $0.scrollTargetIndex = nil
+        await store.send(.dragEnded) {
+            $0.isDragging = false
+            $0.dragStartOffset = -150
         }
     }
     
     @MainActor
-    @Test("scrollToIndex handles boundary cases correctly")
-    func scrollToIndexHandlesBoundaries() async {
-        let store = TestStore(initialState: WaveformFeature.State(totalDuration: 60)) {
-            WaveformFeature()
-        }
-        // imageCount = 60 / 6 = 10, so valid indices are 0-9
-        
-        // Test index 0 (first valid)
-        await store.send(.scrollToIndex(0)) {
-            $0.scrollTargetIndex = 0
-        }
-        
-        // Test index = imageCount - 1 (last valid)
-        await store.send(.scrollToIndex(9)) {
-            $0.scrollTargetIndex = 9
-        }
-        
-        // Test index = imageCount (invalid) - start with a valid index first
-        await store.send(.scrollToIndex(5)) {
-            $0.scrollTargetIndex = 5
-        }
-        
-        await store.send(.scrollToIndex(10)) {
-            $0.scrollTargetIndex = nil
-        }
-    }
-    
-    @MainActor
-    @Test("scrollToIndex validation works with different durations")
-    func scrollToIndexValidationWithDifferentDurations() async {
-        // Test with short duration (minimum imageCount = 10)
-        let store1 = TestStore(initialState: WaveformFeature.State(totalDuration: 30)) {
-            WaveformFeature()
-        }
-        // imageCount = 10 (minimum), valid indices are 0-9
-        
-        await store1.send(.scrollToIndex(5)) {
-            $0.scrollTargetIndex = 5
-        }
-        
-        await store1.send(.scrollToIndex(9)) {
-            $0.scrollTargetIndex = 9
-        }
-        
-        // Test invalid index - should clear the valid index
-        await store1.send(.scrollToIndex(10)) {
-            $0.scrollTargetIndex = nil
-        }
-        
-        // Test with long duration
-        let store2 = TestStore(initialState: WaveformFeature.State(
-            totalDuration: 300,
-            scrollTargetIndex: 25
+    @Test("updateScrollOffsetFromClipStart calculates correct offset")
+    func updateScrollOffsetFromClipStartCalculatesOffset() async {
+        let store = TestStore(initialState: WaveformFeature.State(
+            totalDuration: 120,
+            clipStart: 30,
+            clipDuration: 20,
+            scrollOffset: 0,
+            isDragging: false
         )) {
             WaveformFeature()
         }
-        // imageCount = 50, valid indices are 0-49
         
-        // Change to a different valid index
-        await store2.send(.scrollToIndex(49)) {
-            $0.scrollTargetIndex = 49
+        await store.send(.updateScrollOffsetFromClipStart) {
+            // clipStart = 30, totalDuration = 120
+            // percent = 30/120 = 0.25
+            // position = 0.25 * 600 = 150
+            // clampedOffset = min(150, 540) = 150
+            // scrollOffset = -150
+            $0.scrollOffset = -150
+            $0.dragStartOffset = -150
+        }
+    }
+    
+    @MainActor
+    @Test("updateScrollOffsetFromClipStart does nothing when dragging")
+    func updateScrollOffsetFromClipStartIgnoresWhenDragging() async {
+        let store = TestStore(initialState: WaveformFeature.State(
+            totalDuration: 120,
+            clipStart: 30,
+            clipDuration: 20,
+            scrollOffset: -100,
+            isDragging: true
+        )) {
+            WaveformFeature()
         }
         
-        // Test invalid index - should clear the valid index
-        await store2.send(.scrollToIndex(50)) {
-            $0.scrollTargetIndex = nil
+        await store.send(.updateScrollOffsetFromClipStart)
+    }
+    
+    @MainActor
+    @Test("updateScrollOffsetFromClipStart resets to zero for invalid state")
+    func updateScrollOffsetFromClipStartResetsForInvalidState() async {
+        let store = TestStore(initialState: WaveformFeature.State(
+            totalDuration: 0,
+            clipStart: 0,
+            clipDuration: 0,
+            scrollOffset: -100,
+            isDragging: false
+        )) {
+            WaveformFeature()
         }
+        
+        await store.send(.updateScrollOffsetFromClipStart) {
+            $0.scrollOffset = 0
+            $0.dragStartOffset = 0
+        }
+    }
+    
+    @MainActor
+    @Test("syncDragStartOffset updates dragStartOffset when not dragging")
+    func syncDragStartOffsetUpdatesWhenNotDragging() async {
+        let store = TestStore(initialState: WaveformFeature.State(
+            totalDuration: 120,
+            scrollOffset: -200,
+            dragStartOffset: -100,
+            isDragging: false
+        )) {
+            WaveformFeature()
+        }
+        
+        await store.send(.syncDragStartOffset) {
+            $0.dragStartOffset = -200
+        }
+    }
+    
+    @MainActor
+    @Test("syncDragStartOffset does nothing when dragging")
+    func syncDragStartOffsetIgnoresWhenDragging() async {
+        let store = TestStore(initialState: WaveformFeature.State(
+            totalDuration: 120,
+            scrollOffset: -200,
+            dragStartOffset: -100,
+            isDragging: true
+        )) {
+            WaveformFeature()
+        }
+        
+        await store.send(.syncDragStartOffset)
     }
 }
 

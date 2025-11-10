@@ -115,8 +115,13 @@ struct AudioTrimmerTests {
                 clipDuration: loadedConfiguration.clipDuration
             )
         }
-        await store.receive(.waveform(.scrollToIndex(Int(loadedConfiguration.clipStart / 6)))) {
-            $0.waveform.scrollTargetIndex = Int(loadedConfiguration.clipStart / 6)
+        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
+            // Calculate expected scroll offset
+            let percent = (loadedConfiguration.clipStart / loadedConfiguration.totalDuration).clamped()
+            let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
+            let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
+            $0.waveform.scrollOffset = -clampedOffset
+            $0.waveform.dragStartOffset = -clampedOffset
         }
         // Verify clipProgressPercent is 0 at clip start after loading configuration
         #expect(store.state.timeline.clipProgressPercent == 0.0)
@@ -184,8 +189,13 @@ private extension AudioTrimmerTests {
                 clipDuration: configuration.clipDuration
             )
         }
-        await store.receive(.waveform(.scrollToIndex(Int(configuration.clipStart / 6)))) {
-            $0.waveform.scrollTargetIndex = Int(configuration.clipStart / 6)
+        await store.receive(.waveform(.updateScrollOffsetFromClipStart)) {
+            // Calculate expected scroll offset
+            let percent = (configuration.clipStart / configuration.totalDuration).clamped()
+            let position = CGFloat(percent) * $0.waveform.viewConfiguration.waveformItemsWidth
+            let clampedOffset = max(0, min(position, $0.waveform.viewConfiguration.maxOffset))
+            $0.waveform.scrollOffset = -clampedOffset
+            $0.waveform.dragStartOffset = -clampedOffset
         }
 
         return ConfiguredStoreContext(store: store, configuration: configuration, clock: clock)
