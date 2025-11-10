@@ -68,7 +68,7 @@ struct WaveformView: View {
                 ZStack(alignment: .leading) {
                     // Background fill
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.blue.opacity(0.5))
+                        .fill(Color.yellow.opacity(0.5))
                         .frame(width: geometry.size.width * progressPercent.clamped(0, 1))
                     
                     // Stroke border

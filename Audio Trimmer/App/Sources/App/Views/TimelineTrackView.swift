@@ -5,6 +5,7 @@ struct TimelineTrackView: View {
     let markers: [Double]
     let progress: Double
     let capsuleHeight: CGFloat = 12
+    let clipWidthScale: CGFloat = 1.5
     let onMarkerTapped: ((Double) -> Void)?
     
     var body: some View {
@@ -12,7 +13,7 @@ struct TimelineTrackView: View {
             let width = proxy.size.width
             let clipStart = width * clipRange.lowerBound
             let clipEnd = width * clipRange.upperBound
-            let clipWidth = max(clipEnd - clipStart, 0)
+            let clipWidth = max(clipEnd - clipStart, 0) * clipWidthScale
             let progressX = clipWidth * progress
             
             ZStack(alignment: .leading) {
@@ -34,7 +35,7 @@ struct TimelineTrackView: View {
                 ForEach(Array(markers.enumerated()), id: \.offset) { _, marker in
                     Circle()
                         .fill(Color.accentColor)
-                        .frame(width: 20, height: 20)
+                        .frame(width: 15, height: 15)
                         .offset(x: width * marker, y: 0)
                         .onTapGesture {
                             onMarkerTapped?(marker)
