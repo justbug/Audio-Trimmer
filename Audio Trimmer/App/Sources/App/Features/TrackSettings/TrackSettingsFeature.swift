@@ -54,13 +54,10 @@ struct TrackSettingsFeature {
                 
             case .confirmTapped:
                 // Validate and map to TrackConfiguration
-                let parsed = parseAndValidate(state: &state)
-                switch parsed {
-                case .success(let config):
+                if let config = parseAndValidate(state: &state) {
                     return .send(.delegate(.confirmed(config)))
-                case .failure:
-                    return .none
                 }
+                return .none
                 
             case .delegate:
                 return .none
@@ -71,42 +68,34 @@ struct TrackSettingsFeature {
 
 // MARK: - Validation & Mapping
 private extension TrackSettingsFeature {
-    struct Parsed {
-        let totalDuration: TimeInterval
-        let clipStart: TimeInterval
-        let clipPercent: Double
-        let clipDuration: TimeInterval
-        let keyTimes: [Double]
-    }
-    
-    func parseAndValidate(state: inout State) -> Result<TrackConfiguration, Void> {
+    func parseAndValidate(state: inout State) -> TrackConfiguration? {
         // Parse numbers
         guard let totalDuration = TimeInterval(state.totalDurationText.trimmingCharacters(in: .whitespaces)),
               totalDuration > 0
         else {
             state.totalDurationError = "Track length must be greater than 0."
-            return .failure(())
+            return nil
         }
         
         guard let clipStart = TimeInterval(state.clipStartText.trimmingCharacters(in: .whitespaces)),
               clipStart >= 0
         else {
             state.clipStartError = "Clip start must be ≥ 0."
-            return .failure(())
+            return nil
         }
         
         guard let clipPercent = Double(state.clipPercentText.trimmingCharacters(in: .whitespaces)),
               clipPercent > 0, clipPercent <= 100
         else {
             state.clipPercentError = "Clip percent must be in (0, 100]."
-            return .failure(())
+            return nil
         }
         
         // Compute clip duration
         let clipDuration = totalDuration * (clipPercent / 100.0)
         if clipDuration <= 0 {
             state.clipPercentError = "Clip percent too small; duration must be > 0."
-            return .failure(())
+            return nil
         }
         
         // Key times parsing and normalization
@@ -119,7 +108,12 @@ private extension TrackSettingsFeature {
         for token in tokens {
             guard let value = Double(token) else {
                 state.keyTimesError = "Key times must be numbers separated by commas or spaces."
-                return .failure(())
+                return nil
+            }
+            // Reject out-of-range values explicitly per validation rules
+            guard value >= 0, value <= 100 else {
+                state.keyTimesError = "Key times must be between 0% and 100%."
+                return nil
             }
             rawKeyTimes.append(value)
         }
@@ -134,13 +128,13 @@ private extension TrackSettingsFeature {
         
         if normalized.isEmpty {
             state.keyTimesError = "At least one key time is required."
-            return .failure(())
+            return nil
         }
         
         // Validate clip window
         if clipStart + clipDuration > totalDuration {
             state.clipPercentError = "Clip end exceeds track length. Adjust clip start or percent."
-            return .failure(())
+            return nil
         }
         
         let configuration = TrackConfiguration(
@@ -149,7 +143,7 @@ private extension TrackSettingsFeature {
             clipDuration: clipDuration,
             keyTimePercentages: normalized
         )
-        return .success(configuration)
+        return configuration
     }
 }
 

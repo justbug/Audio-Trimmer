@@ -75,7 +75,9 @@ private struct LabeledField: View {
                 .font(.headline)
             TextField("", text: $text)
                 .textFieldStyle(.roundedBorder)
-                .keyboardType(.decimalPad)
+                #if os(iOS)
+                .keyboardType(.numberPad)
+                #endif
         }
     }
 }

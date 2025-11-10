@@ -22,9 +22,6 @@ struct AudioTrimmerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Color.white)
-        .task {
-            await store.send(.loadConfiguration).finish()
-        }
     }
 }
 

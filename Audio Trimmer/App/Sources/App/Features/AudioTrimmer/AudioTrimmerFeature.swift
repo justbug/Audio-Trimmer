@@ -35,13 +35,11 @@ struct AudioTrimmerFeature {
     }
 
     enum Action: Equatable {
+        case onAppear
         case playTapped
         case pauseTapped
         case resetTapped
         case tick
-        case loadConfiguration
-        case configurationLoaded(TrackConfiguration)
-        case loadConfigurationFailed(String)
         case waveform(WaveformFeature.Action)
         case markerTapped(markerPositionPercent: Double)
     }
@@ -116,7 +114,6 @@ struct AudioTrimmerFeature {
     }
 
     @Dependency(\.continuousClock) var clock
-    @Dependency(\.configurationLoader) var configurationLoader
     static let minimumClipDuration: TimeInterval = 1
 
     var body: some ReducerOf<Self> {
@@ -125,6 +122,18 @@ struct AudioTrimmerFeature {
         }
         Reduce { (state, action) -> Effect<Action> in
             switch action {
+            case .onAppear:
+                let configuration = state.configuration
+                state.playbackState = .idle(configuration: configuration)
+                // Update waveform state with new configuration
+                state.waveform = WaveformFeature.State(
+                    totalDuration: configuration.totalDuration,
+                    clipStart: configuration.clipStart,
+                    clipDuration: configuration.clipDuration,
+                    clipProgressPercent: 0
+                )
+                updateDerivedState(&state)
+                return .send(.waveform(.updateScrollOffsetFromClipStart))
             case .waveform:
                 return .none
             case .playTapped:
@@ -134,8 +143,8 @@ struct AudioTrimmerFeature {
                 if state.playbackState.status == PlaybackState.Status.finished {
                     state.playbackState = .playing(configuration: state.configuration)
                 } else {
-                    // For idle or paused, start playing from current position
-                    state.playbackState.status = .playing
+                    // For idle or paused, start playing from clipStart with full clipDuration
+                    state.playbackState = .playing(configuration: state.configuration)
                 }
                 updateDerivedState(&state)
                 return .run { send in
@@ -177,31 +186,6 @@ struct AudioTrimmerFeature {
                 updateDerivedState(&state)
                 return .cancel(id: TimerID.playback)
 
-            case .loadConfiguration:
-                let loader = self.configurationLoader
-                return .run { send in
-                    do {
-                        let configuration = try await loader.load()
-                        await send(.configurationLoaded(configuration))
-                    } catch {
-                        await send(.loadConfigurationFailed(error.localizedDescription))
-                    }
-                }
-            case .configurationLoaded(let configuration):
-                state.configuration = configuration
-                state.playbackState = .idle(configuration: configuration)
-                // Update waveform state with new configuration
-                state.waveform = WaveformFeature.State(
-                    totalDuration: configuration.totalDuration,
-                    clipStart: configuration.clipStart,
-                    clipDuration: configuration.clipDuration,
-                    clipProgressPercent: 0
-                )
-                updateDerivedState(&state)
-                return .send(.waveform(.updateScrollOffsetFromClipStart))
-            case .loadConfigurationFailed(let error):
-                print("Error loading configuration: \(error)")
-                return .none
             case .markerTapped(let markerPositionPercent):
                 guard state.configuration.totalDuration > 0 else {
                     return .none

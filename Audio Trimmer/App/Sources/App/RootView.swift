@@ -13,13 +13,27 @@ struct AppRootFeature {
     @ObservableState
     struct State: Equatable {
         var trackSettings = TrackSettingsFeature.State()
-        var audioTrimmer: AudioTrimmerFeature.State?
+        var path = StackState<Path.State>()
     }
     
     enum Action: Equatable {
+        case path(StackAction<Path.State, Path.Action>)
         case trackSettings(TrackSettingsFeature.Action)
-        case audioTrimmer(AudioTrimmerFeature.Action)
-        case resetToSettings
+    }
+    
+    @Reducer
+    struct Path {
+        enum State: Equatable {
+            case audioTrimmer(AudioTrimmerFeature.State)
+        }
+        enum Action: Equatable {
+            case audioTrimmer(AudioTrimmerFeature.Action)
+        }
+        var body: some ReducerOf<Self> {
+            Scope(state: \.audioTrimmer, action: \.audioTrimmer) {
+                AudioTrimmerFeature()
+            }
+        }
     }
     
     var body: some ReducerOf<Self> {
@@ -28,20 +42,20 @@ struct AppRootFeature {
         }
         Reduce { state, action in
             switch action {
+            case .path:
+                return .none
             case .trackSettings(.delegate(.confirmed(let configuration))):
-                state.audioTrimmer = AudioTrimmerFeature.State(configuration: configuration)
+                state.path.append(.audioTrimmer(.init(configuration: configuration)))
+                if let id = state.path.ids.last {
+                    return .send(.path(.element(id: id, action: .audioTrimmer(.onAppear))))
+                }
                 return .none
             case .trackSettings:
                 return .none
-            case .audioTrimmer:
-                return .none
-            case .resetToSettings:
-                state.audioTrimmer = nil
-                return .none
             }
         }
-        .ifLet(\.audioTrimmer, action: \.audioTrimmer) {
-            AudioTrimmerFeature()
+        .forEach(\.path, action: \.path) {
+            Path()
         }
     }
 }
@@ -58,12 +72,21 @@ public struct RootView: View {
     }
     
     public var body: some View {
-        WithViewStore(store, observe: { $0 }) { _ in
-            if let trimmerStore = store.scope(state: \.audioTrimmer, action: \.audioTrimmer) {
-                AudioTrimmerView(store: trimmerStore)
-            } else {
-                TrackSettingsView(
-                    store: store.scope(state: \.trackSettings, action: \.trackSettings)
+        NavigationStackStore(
+            store.scope(state: \.path, action: \.path)
+        ) {
+            TrackSettingsView(
+                store: store.scope(state: \.trackSettings, action: \.trackSettings)
+            )
+        } destination: { state in
+            switch state {
+            case .audioTrimmer:
+                CaseLet(
+                    /AppRootFeature.Path.State.audioTrimmer,
+                    action: AppRootFeature.Path.Action.audioTrimmer,
+                    then: { store in
+                        AudioTrimmerView(store: store)
+                    }
                 )
             }
         }
