@@ -166,7 +166,7 @@ graph LR
 
 - **State** manages the root navigation state with `TrackSettingsFeature.State` and a `StackState<Path.State>` for navigation paths.
 - **Actions** handle navigation path actions and delegate actions from `TrackSettingsFeature` to navigate to `AudioTrimmerFeature`.
-- **Navigation** uses TCA's path-based navigation system to manage transitions from track settings entry to audio trimming view.
+- **Navigation** uses TCA's path-based navigation system to manage transitions from track settings entry to audio trimming view, with `AppRootView` utilizing `IfLetStore` for conditional navigation rendering.
 - **Composition** scopes `TrackSettingsFeature` and manages navigation to `AudioTrimmerFeature` through the path stack.
 
 ### TrackSettingsFeature
@@ -182,9 +182,11 @@ graph LR
 
 - **State** tracks the `TrackConfiguration` (passed via initialization), the current `PlaybackState`, a derived
   `TimelineSnapshot`, and a scoped `WaveformFeature.State` for waveform visualization.
-- **Actions** cover playback controls (`playTapped`, `pauseTapped`, `resetTapped`, `tick`), view appearance (`onAppear`), marker interaction (`markerTapped`), and waveform actions (`waveform`).
+- **Actions** cover playback controls (`playTapped`, `pauseTapped`, `resetTapped`, `tick`), view appearance (`onAppear`), marker interaction (`markerTapped`), waveform drag interactions (`waveformDragChanged`, `waveformDragEnded`), and waveform actions (`waveform`).
+- **Playback state** includes `idle`, `playing`, `paused`, `pausedByDrag`, and `finished` statuses, with helper properties `isPlaying` and `wasPausedByDrag` for state checks.
 - **Effects** start a cancellable timer (`TimerID.playback`) when playback begins and cancel it when
   playback pauses, finishes, or resets. The reducer uses `@Dependency(\.continuousClock)` for timer delivery.
+- **Drag support** automatically pauses playback when waveform dragging starts (`pausedByDrag` status) and resumes playback when dragging ends, converting scroll offset to clip start position in real-time.
 - **Derived data** is rebuilt through `updateDerivedState`, ensuring `TimelineSnapshot` stays consistent with the
   active configuration and playback progress. The feature tracks clip progress separately from overall playback
   progress, providing more granular control over the trimming experience.
@@ -196,6 +198,7 @@ graph LR
 - **State** manages waveform visualization parameters including `totalDuration`, `clipStart`, `clipDuration`, `scrollOffset`, drag state, and `clipProgressPercent`. Includes a `ViewConfiguration` struct for layout parameters.
 - **Actions** handle drag gestures (`dragStarted`, `dragChanged`, `dragEnded`), scroll synchronization (`syncDragStartOffset`, `updateScrollOffsetFromClipStart`), and clip progress updates.
 - **Behavior** provides drag-and-scroll functionality for interactive waveform navigation, with scroll offset automatically synchronized to clip position changes.
+- **Scroll offset calculation** uses the valid clip start range (`maxClipStart = totalDuration - clipDuration`) instead of total duration, ensuring accurate positioning when the clip duration is less than the total duration.
 
 ### Domain Models
 - `TrackConfiguration` (`Audio Trimmer/App/Sources/App/Models/TrackConfiguration.swift`) defines the raw trimming
@@ -211,9 +214,10 @@ graph LR
 
 ## SwiftUI Shell
 - `AppRootView` (`Audio Trimmer/App/Sources/App/Features/AppRoot/AppRootView.swift`) is the main SwiftUI entry point that initializes
-  and provides the `AppRootFeature` store, managing navigation between `TrackSettingsView` and `AudioTrimmerView`.
+  and provides the `AppRootFeature` store, managing navigation between `TrackSettingsView` and `AudioTrimmerView` using `IfLetStore` for conditional navigation.
 - `TrackSettingsView` (`Audio Trimmer/App/Sources/App/Features/TrackSettings/TrackSettingsView.swift`) provides the entry form for track configuration with:
-  - Input fields for track length, key times, clip start, and clip percent
+  - Input fields for track length, key times, clip start, and clip percent with appropriate keyboard types (numberPad for numeric fields, default for key times)
+  - Pre-filled example values for better user experience
   - Real-time field validation with error messages
   - Confirm button that enables only when all fields are valid
   - Navigation to audio trimmer view upon successful validation
@@ -223,7 +227,7 @@ graph LR
   - Playback controls (play, pause, reset)
   - Clip details display (start time, duration, end time)
   - Progress tracking for both overall playback and clip-specific progress
-  - Interactive waveform visualization with drag-and-scroll functionality
+  - Interactive waveform visualization with drag-and-scroll functionality that automatically pauses and resumes playback
 - `WaveformView` (`Audio Trimmer/App/Sources/App/Features/Waveform/WaveformView.swift`) provides a scrollable
   waveform visualization with:
   - Dynamic layout based on clip duration and total duration
@@ -234,7 +238,7 @@ graph LR
   for displaying timeline tracks with:
   - Clip range visualization
   - Interactive key time markers
-  - Progress indicator
+  - Progress indicator with view bounds constraints to prevent overflow
   - Marker tap handling for clip position adjustment
 - Assets dedicated to iOS belong in `Audio Trimmer/Assets.xcassets`; cross-platform logic stays inside the Swift
   package so the package tests and the Xcode target share the same code.
@@ -254,6 +258,7 @@ graph LR
     - Clip progress tracking works independently from overall playback progress.
     - Marker tap interactions adjust clip position correctly.
     - Waveform scroll offset synchronization with clip start.
+    - Test logic is streamlined with helper functions (`expectTick`, `expectScrollOffsetUpdate`, `expectMarkerTappedStateUpdate`) for improved maintainability.
   - **WaveformTests.swift** verifies:
     - Drag gesture state management (start, change, end).
     - Scroll offset synchronization with clip position.
@@ -273,6 +278,11 @@ graph LR
 ## Recent Changes
 
 ### Added
+- Added drag support for waveform interaction, allowing users to adjust clip start position by dragging the waveform
+- Added automatic playback pause during waveform drag with resume functionality when drag ends
+- Added scroll offset to clip start conversion logic for real-time position updates during drag
+- Added view bounds constraints to `TimelineTrackView` to prevent visual elements from exceeding view boundaries
+- Added keyboard type options to `TrackSettingsView` text fields (numberPad for numeric fields, default for key times)
 - Implemented `AppRootFeature` and `AppRootView` for root-level navigation management using TCA's `NavigationStackStore`
 - Added `TrackSettingsFeature` and `TrackSettingsView` for track configuration entry form with validation
 - Added form input fields for track length, key times, clip start, and clip percent with real-time validation
@@ -284,12 +294,21 @@ graph LR
 - Improved time formatting precision in `TimeInterval+Extensions.formattedSeconds()` to show one decimal place
 
 ### Changed
+- Updated default text field values in `TrackSettingsFeature` state to provide example values for better user experience
+- Updated `AppRootView` navigation to use `IfLetStore` for conditional navigation to `AudioTrimmerView`
+- Updated `TrackSettingsView` layout to use `VStack` instead of `Group` for improved structure
+- Updated waveform scroll offset calculation to use valid clip start range instead of total duration
 - Updated app entry point from `RootView` to `AppRootView` for enhanced navigation structure
 - Modified `AudioTrimmerFeature` to accept `TrackConfiguration` via initialization instead of loading from dependency
 - Updated `AudioTrimmerView` to remove configuration loading on task completion
 - Enhanced test coverage for timeline initialization, waveform scroll offset, and clip progress percentage
 
+### Fixed
+- Fixed default text values in `TrackSettingsFeature` state to provide initial example values instead of empty strings
+
 ### Refactored
+- Refactored `AudioTrimmerTests` with helper functions (`expectTick`, `expectScrollOffsetUpdate`, `expectMarkerTappedStateUpdate`) to improve test readability and maintainability
+- Simplified navigation in `AppRootView` using `IfLetStore` instead of `CaseLet` for cleaner conditional rendering
 - Removed `ConfigurationLoader` dependency and configuration loading functionality from `AudioTrimmerFeature`
 - Restructured navigation to use path-based state management in `AppRootFeature` instead of direct state management
 - Simplified parsing and validation logic in `TrackSettingsFeature` with clearer error handling
