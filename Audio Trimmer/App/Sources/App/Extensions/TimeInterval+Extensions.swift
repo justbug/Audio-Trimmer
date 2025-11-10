@@ -12,7 +12,7 @@ extension TimeInterval {
     }
 
     func formattedSeconds() -> String {
-        "\(Int(rounded()))s"
+        String(format: "%.1fs", self)
     }
 }
 
