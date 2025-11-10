@@ -113,6 +113,7 @@ graph TB
 ```mermaid
 graph LR
     subgraph ViewLayer["View Layer"]
+        TSV[TrackSettingsView]
         AV[AudioTrimmerView]
         WV[WaveformView]
         TTV[TimelineTrackView]
