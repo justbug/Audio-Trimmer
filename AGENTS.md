@@ -20,4 +20,5 @@ Continue using Conventional Commits (e.g., `feat: add waveform trimming reducer`
 - N/A (in-memory simulation only) (001-audio-trim-sim)
 
 ## Recent Changes
+- 001-track-settings: Implemented path-based navigation architecture using TCA's `NavigationStackStore` and `StackState` for feature composition and navigation flow
 - 001-audio-trim-sim: Added Swift 5.10 (Swift 5.9+ compatible with current toolchain) + The Composable Architecture 1.23.0, Swift `Clock` APIs
