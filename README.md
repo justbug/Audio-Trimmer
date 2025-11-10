@@ -15,8 +15,10 @@ Audio Trimmer/
 ├─ App/Package.swift                      # SwiftPM manifest for the reusable package
 ├─ App/Sources/App/RootView.swift         # SwiftUI entry point using TCA architecture
 ├─ App/Sources/App/Features/AudioTrimmer/ # Audio trimming feature reducer & dependencies
+├─ App/Sources/App/Features/Waveform/     # Waveform visualization feature reducer & view
 ├─ App/Sources/App/Models/                # Cross-platform domain models
 ├─ App/Sources/App/Extensions/            # Shared helpers (Double+Extensions, TimeInterval+Extensions)
+├─ App/Sources/App/Views/                 # Reusable UI components (TimelineTrackView, etc.)
 ├─ App/Tests/AppTests/                    # Swift Testing + TCA TestStore coverage
 ├─ Audio Trimmer.xcodeproj                # iOS shell + asset catalog
 └─ README.md                              # Single source of truth for build & architecture
@@ -49,18 +51,147 @@ Audio Trimmer/
   `ConfigurationLoader` and uses TCA's `continuousClock` for time-based effects.
 - Views bind to `StoreOf<Feature>` and derive navigation/scoped state rather than owning mutable data.
 
+### Project Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "App Entry Point"
+        RootView[RootView]
+    end
+    
+    subgraph "Features Layer"
+        AudioTrimmerFeature[AudioTrimmerFeature<br/>@Reducer]
+        WaveformFeature[WaveformFeature<br/>@Reducer]
+    end
+    
+    subgraph "Views Layer"
+        AudioTrimmerView[AudioTrimmerView]
+        WaveformView[WaveformView]
+        TimelineTrackView[TimelineTrackView]
+        DetailRow[DetailRow]
+    end
+    
+    subgraph "Models Layer"
+        TrackConfiguration[TrackConfiguration]
+    end
+    
+    subgraph "Extensions Layer"
+        DoubleExt[Double+Extensions]
+        TimeIntervalExt[TimeInterval+Extensions]
+    end
+    
+    subgraph "Dependencies"
+        ConfigLoader[ConfigurationLoader<br/>@DependencyKey]
+        Clock[continuousClock<br/>@Dependency]
+    end
+    
+    RootView --> AudioTrimmerView
+    AudioTrimmerView --> AudioTrimmerFeature
+    AudioTrimmerView --> WaveformView
+    AudioTrimmerView --> TimelineTrackView
+    AudioTrimmerView --> DetailRow
+    WaveformView --> WaveformFeature
+    
+    AudioTrimmerFeature -->|scopes| WaveformFeature
+    AudioTrimmerFeature --> TrackConfiguration
+    AudioTrimmerFeature --> ConfigLoader
+    AudioTrimmerFeature --> Clock
+    
+    TrackConfiguration --> DoubleExt
+    TrackConfiguration --> TimeIntervalExt
+    
+    style RootView fill:#e1f5ff
+    style AudioTrimmerFeature fill:#fff4e1
+    style WaveformFeature fill:#fff4e1
+    style AudioTrimmerView fill:#e8f5e9
+    style WaveformView fill:#e8f5e9
+    style TrackConfiguration fill:#f3e5f5
+    style ConfigLoader fill:#fff9c4
+    style Clock fill:#fff9c4
+```
+
+### Dependency Diagram
+
+```mermaid
+graph LR
+    subgraph "View Layer"
+        AV[AudioTrimmerView]
+        WV[WaveformView]
+        TTV[TimelineTrackView]
+        DR[DetailRow]
+    end
+    
+    subgraph "Feature Layer"
+        ATF[AudioTrimmerFeature]
+        WF[WaveformFeature]
+    end
+    
+    subgraph "Model Layer"
+        TC[TrackConfiguration]
+    end
+    
+    subgraph "Utility Layer"
+        DE[Double+Extensions]
+        TIE[TimeInterval+Extensions]
+    end
+    
+    subgraph "Dependency Layer"
+        CL[ConfigurationLoader]
+        CC[continuousClock]
+    end
+    
+    AV -.->|binds to| ATF
+    AV -.->|uses| TTV
+    AV -.->|uses| DR
+    WV -.->|binds to| WF
+    
+    ATF -.->|composes| WF
+    ATF -.->|uses| TC
+    ATF -.->|depends on| CL
+    ATF -.->|depends on| CC
+    
+    TC -.->|uses| DE
+    TC -.->|uses| TIE
+    
+    style AV fill:#c8e6c9
+    style WV fill:#c8e6c9
+    style ATF fill:#ffccbc
+    style WF fill:#ffccbc
+    style TC fill:#e1bee7
+    style CL fill:#fff9c4
+    style CC fill:#fff9c4
+```
+
+**Legend:**
+- **Solid arrows (→)**: Direct composition/ownership
+- **Dashed arrows (-.->)**: Dependency/usage relationship
+- **Color coding:**
+  - 🔵 Blue: Entry point
+  - 🟠 Orange: Feature reducers
+  - 🟢 Green: SwiftUI views
+  - 🟣 Purple: Domain models
+  - 🟡 Yellow: Dependencies
+
 ### AudioTrimmerFeature
 `Audio Trimmer/App/Sources/App/Features/AudioTrimmer/AudioTrimmerFeature.swift`
 
-- **State** tracks the loaded `TrackConfiguration`, the current `PlaybackState`, and a derived
-  `TimelineSnapshot`. A placeholder configuration supports showing the feature before data loads.
-- **Actions** cover playback controls (`playTapped`, `pauseTapped`, `resetTapped`, `tick`) and data loading
-  (`loadConfiguration`, `configurationLoaded`, `loadConfigurationFailed`).
+- **State** tracks the loaded `TrackConfiguration`, the current `PlaybackState`, a derived
+  `TimelineSnapshot`, and a scoped `WaveformFeature.State` for waveform visualization. A placeholder configuration supports showing the feature before data loads.
+- **Actions** cover playback controls (`playTapped`, `pauseTapped`, `resetTapped`, `tick`), data loading
+  (`loadConfiguration`, `configurationLoaded`, `loadConfigurationFailed`), marker interaction (`markerTapped`), and waveform actions (`waveform`).
 - **Effects** start a cancellable timer (`TimerID.playback`) when playback begins and cancel it when
   playback pauses, finishes, or resets. The reducer uses `@Dependency(\.continuousClock)` for timer delivery.
 - **Derived data** is rebuilt through `updateDerivedState`, ensuring `TimelineSnapshot` stays consistent with the
-  active configuration and playback progress. The feature now tracks clip progress separately from overall playback
+  active configuration and playback progress. The feature tracks clip progress separately from overall playback
   progress, providing more granular control over the trimming experience.
+- **Composition** scopes `WaveformFeature` as a child reducer, enabling synchronized state between audio trimming and waveform visualization.
+
+### WaveformFeature
+`Audio Trimmer/App/Sources/App/Features/Waveform/WaveformFeature.swift`
+
+- **State** manages waveform visualization parameters including `totalDuration`, `clipStart`, `clipDuration`, `scrollOffset`, drag state, and `clipProgressPercent`. Includes a `ViewConfiguration` struct for layout parameters.
+- **Actions** handle drag gestures (`dragStarted`, `dragChanged`, `dragEnded`), scroll synchronization (`syncDragStartOffset`, `updateScrollOffsetFromClipStart`), and clip progress updates.
+- **Behavior** provides drag-and-scroll functionality for interactive waveform navigation, with scroll offset automatically synchronized to clip position changes.
 
 ### Domain Models
 - `TrackConfiguration` (`Audio Trimmer/App/Sources/App/Models/TrackConfiguration.swift`) defines the raw trimming
@@ -96,16 +227,36 @@ Audio Trimmer/
   - Playback controls (play, pause, reset)
   - Clip details display (start time, duration, end time)
   - Progress tracking for both overall playback and clip-specific progress
+  - Interactive waveform visualization with drag-and-scroll functionality
+- `WaveformView` (`Audio Trimmer/App/Sources/App/Features/Waveform/WaveformView.swift`) provides a scrollable
+  waveform visualization with:
+  - Dynamic layout based on clip duration and total duration
+  - Drag gesture support for manual scrolling
+  - Progress indicator showing clip playback progress
+  - Automatic scroll synchronization with clip position changes
+- `TimelineTrackView` (`Audio Trimmer/App/Sources/App/Views/TimelineTrackView.swift`) is a reusable component
+  for displaying timeline tracks with:
+  - Clip range visualization
+  - Interactive key time markers
+  - Progress indicator
+  - Marker tap handling for clip position adjustment
 - Assets dedicated to iOS belong in `Audio Trimmer/Assets.xcassets`; cross-platform logic stays inside the Swift
   package so the package tests and the Xcode target share the same code.
 
 ## Testing
 - Tests live under `Audio Trimmer/App/Tests/AppTests/` and use the Swift `Testing` package alongside TCA's
-  `TestStore`. The current coverage (`AudioTrimmerTests.swift`) verifies:
-  - Successful configuration loading updates state.
-  - Playback timers tick until completion and respect pause/reset.
-  - Timeline snapshots reflect derived ranges and markers.
-  - Clip progress tracking works independently from overall playback progress.
+  `TestStore`. The current coverage includes:
+  - **AudioTrimmerTests.swift** verifies:
+    - Successful configuration loading updates state.
+    - Playback timers tick until completion and respect pause/reset.
+    - Timeline snapshots reflect derived ranges and markers.
+    - Clip progress tracking works independently from overall playback progress.
+    - Marker tap interactions adjust clip position correctly.
+  - **WaveformTests.swift** verifies:
+    - Drag gesture state management (start, change, end).
+    - Scroll offset synchronization with clip position.
+    - View configuration calculations.
+    - Clip progress percentage updates.
 - Run `swift test --package-path "Audio Trimmer/App"` before opening a pull request or merging changes.
 
 ## Development Workflow
@@ -120,19 +271,27 @@ Audio Trimmer/
 ## Recent Changes
 
 ### Added
-- Implemented `AudioTrimmerView` with complete UI components for audio trimming, playback controls, and configuration loading
-- Added extensions for `Double` and `TimeInterval` with formatting and clamping methods
-- Replaced `ContentView` with `RootView` to enhance app structure and introduce Composable Architecture
+- Implemented `WaveformFeature` reducer with state management for waveform visualization, drag-and-scroll functionality, and scroll offset synchronization
+- Added `WaveformView` component with interactive drag gesture support and dynamic layout based on clip duration
+- Added marker tap interaction in `TimelineTrackView` to allow users to adjust clip position by tapping key time markers
+- Moved `TimelineTrackView` to a separate file (`App/Sources/App/Views/TimelineTrackView.swift`) for better organization
+- Integrated `WaveformFeature` into `AudioTrimmerFeature` as a scoped child reducer for synchronized state management
+- Added comprehensive test coverage for `WaveformFeature` including drag gestures, scroll synchronization, and state management
+- Added test plan configuration for organized test execution
 
 ### Changed
-- Enhanced `AudioTrimmerFeature` with clip progress tracking and updated UI to reflect new progress metrics
-- Optimized playback progress calculation by moving logic into `updateDerivedState` method
+- Enhanced `AudioTrimmerFeature` to include `WaveformFeature.State` and handle waveform actions through scoped reducer composition
+- Updated waveform state management to use `scrollOffset` instead of `scrollTargetIndex` for more precise scroll control
+- Synchronized clip progress percentage between `AudioTrimmerFeature` and `WaveformFeature` for consistent UI updates
+- Improved `WaveformView` layout calculations and removed unused properties for cleaner implementation
+- Updated `AudioTrimmerView` to use scoped `WaveformFeature` store instead of direct property passing
 
-### Chores
-- Updated `.gitignore` to include `buildServer.json` and `.clangModuleCache`
+### Refactored
+- Cleaned up `WaveformFeature` and `WaveformView` by removing unused properties and simplifying layout calculations
+- Updated test files to use `scrollOffset` instead of `scrollTargetIndex` for consistency with new state management approach
 
 ## Next Steps
 - Implement a production `ConfigurationLoader` that fetches track metadata from disk or a service.
 - Add seek and scrub functionality to allow users to jump to specific positions in the audio.
-- Extend coverage with reducer tests for new behaviors (seek, scrub, waveform markers) as they are introduced.
-- Enhance the UI with waveform visualization and interactive marker editing.
+- Extend waveform visualization with actual audio waveform data rendering instead of placeholder icons.
+- Enhance marker editing to allow dragging markers to adjust clip boundaries dynamically.
