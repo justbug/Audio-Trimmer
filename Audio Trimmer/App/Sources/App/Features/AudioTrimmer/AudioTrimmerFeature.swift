@@ -195,10 +195,8 @@ struct AudioTrimmerFeature {
                     clipStart: configuration.clipStart,
                     clipDuration: configuration.clipDuration
                 )
-                // Calculate target scroll index based on clipStart
-                let targetIndex = Int(configuration.clipStart / 6)
                 updateDerivedState(&state)
-                return .send(.waveform(.scrollToIndex(targetIndex)))
+                return .none
             case .loadConfigurationFailed(let error):
                 print("Error loading configuration: \(error)")
                 return .none

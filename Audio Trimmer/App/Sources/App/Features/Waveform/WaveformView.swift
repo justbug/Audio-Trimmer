@@ -4,57 +4,68 @@ import ComposableArchitecture
 struct WaveformView: View {
     @Bindable var store: StoreOf<WaveformFeature>
     private let itemSize: CGFloat = 60
-    private let contentInsetDivider: CGFloat = 3
+    private let itemsCount: Int = 10
+    private let itemsPadding: CGFloat = 16
+    private var borderWidth: CGFloat {
+        itemSize
+    }
+    
+    private var waveformItemsWidth: CGFloat {
+        CGFloat(itemsCount) * itemSize
+    }
     
     init(store: StoreOf<WaveformFeature>) {
         self.store = store
     }
     
-    private var imageCount: Int {
-        store.imageCount
-    }
-    
-    private var borderWidth: CGFloat {
-        2 * itemSize
-    }
-        
     var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let borderX = width / contentInsetDivider
-            ZStack(alignment: .leading) {
-                waveformScrollView(width: width)
-                
-                TimelineBorderView()
-                    .frame(width: borderWidth, height: itemSize)
-                    .offset(x: borderX)
+        VStack(alignment: .leading, spacing: 8) {
+            if !store.text.isEmpty {
+                Text(store.text)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .frame(width: width, height: itemSize)
+            
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    waveformScrollView()
+                    
+                    TimelineBorderView()
+                        .frame(width: itemSize, height: itemSize)
+                        .offset(x: itemsPadding, y: 0)
+                }
+            }
+            .frame(height: itemSize)
         }
-        .frame(height: itemSize)
     }
     
-    private func waveformScrollView(width: CGFloat) -> some View {
-        let contentWidth = CGFloat(imageCount) * itemSize
-        return ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(0..<imageCount, id: \.self) { index in
-                        waveformImageView(itemSize: itemSize)
-                            .id(index)
-                    }
-                }
-                .frame(width: contentWidth)
+    private func waveformScrollView() -> some View {
+        return HStack(spacing: 0) {
+            ForEach(0..<itemsCount, id: \.self) { index in
+                waveformImageView(itemSize: itemSize)
+                    .id(index)
             }
-            .frame(width: width, height: itemSize)
-            .contentMargins(.horizontal, width / contentInsetDivider, for: .scrollContent)
-            .onChange(of: store.scrollTargetIndex) { _, newIndex in
-                if let targetIndex = newIndex, targetIndex >= 0 && targetIndex < imageCount {
-                    withAnimation {
-                        proxy.scrollTo(targetIndex, anchor: .leading)
+        }
+        .padding(.horizontal, itemsPadding)
+        .frame(height: itemSize)
+        .offset(x: store.scrollOffset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if !store.isDragging {
+                        store.send(.dragStarted)
                     }
+                    store.send(.dragChanged(translation: value.translation.width, maxOffset: waveformItemsWidth - borderWidth))
                 }
-            }
+                .onEnded { _ in
+                    store.send(.dragEnded)
+                }
+        )
+        .onAppear {
+            store.send(.syncDragStartOffset)
+        }
+        .onChange(of: store.scrollOffset) { _, _ in
+            store.send(.syncDragStartOffset)
         }
     }
     
@@ -107,13 +118,10 @@ struct WaveformView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Clip at 6s (should scroll 1 item)")
+                    Text("Clip at 6s")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     WaveformView(store: scrollStore)
-                        .task {
-                            scrollStore.send(.scrollToIndex(Int(6 / 6)))
-                        }
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {

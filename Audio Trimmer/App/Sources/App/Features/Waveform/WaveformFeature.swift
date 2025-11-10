@@ -8,39 +8,60 @@ struct WaveformFeature {
         var totalDuration: TimeInterval
         var clipStart: TimeInterval
         var clipDuration: TimeInterval
-        var scrollTargetIndex: Int?
-        
-        var imageCount: Int {
-            let duration = max(totalDuration, 60)
-            return Int(duration / 6)
+        var scrollOffset: CGFloat = 0
+        var dragStartOffset: CGFloat = 0
+        var isDragging: Bool = false
+        var text: String {
+            "Scroll Offset: \(scrollOffset)\nDrag Start Offset: \(dragStartOffset)\nIs Dragging: \(isDragging)"
         }
-        
+                
         init(
             totalDuration: TimeInterval = 0,
             clipStart: TimeInterval = 0,
             clipDuration: TimeInterval = 0,
-            scrollTargetIndex: Int? = nil
+            scrollOffset: CGFloat = 0,
+            dragStartOffset: CGFloat = 0,
+            isDragging: Bool = false
         ) {
             self.totalDuration = totalDuration
             self.clipStart = clipStart
             self.clipDuration = clipDuration
-            self.scrollTargetIndex = scrollTargetIndex
+            self.scrollOffset = scrollOffset
+            self.dragStartOffset = dragStartOffset
+            self.isDragging = isDragging
         }
     }
     
     enum Action: Equatable {
-        case scrollToIndex(Int?)
+        case dragStarted
+        case dragChanged(translation: CGFloat, maxOffset: CGFloat)
+        case dragEnded
+        case syncDragStartOffset
     }
     
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
-            case .scrollToIndex(let index):
-                // Validate index is within bounds
-                if let targetIndex = index, targetIndex >= 0 && targetIndex < state.imageCount {
-                    state.scrollTargetIndex = targetIndex
-                } else {
-                    state.scrollTargetIndex = nil
+            case .dragStarted:
+                state.isDragging = true
+                state.dragStartOffset = state.scrollOffset
+                return .none
+                
+            case .dragChanged(let translation, let maxOffset):
+                // Reversed: left swipe moves content left, right swipe moves content right
+                let newOffset = state.dragStartOffset + translation
+                // Clamp offset to valid range [minOffset, 0] where minOffset is negative
+                let minOffset = -maxOffset
+                state.scrollOffset = max(minOffset, min(newOffset, 0))
+                return .none
+            case .dragEnded:
+                state.isDragging = false
+                state.dragStartOffset = state.scrollOffset
+                return .none
+                
+            case .syncDragStartOffset:
+                if !state.isDragging {
+                    state.dragStartOffset = state.scrollOffset
                 }
                 return .none
             }
